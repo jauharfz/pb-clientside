@@ -1,15 +1,28 @@
 // src/layouts/AdminLayout.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { PieChart, Users, Store, FileText, LogOut, User } from 'lucide-react';
+import { PieChart, Users, Store, FileText, LogOut, User, Menu, X } from 'lucide-react';
 
 const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [userData, setUserData] = useState({ nama: 'Admin', role: 'admin' });
+
+    // Ambil data user dari localStorage saat komponen dimuat
+    useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            setUserData(JSON.parse(storedUser));
+        }
+    }, []);
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        navigate('/login');
+        if(window.confirm('Apakah Anda yakin ingin keluar?')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            navigate('/login');
+        }
     };
 
     const navItems = [
@@ -19,18 +32,47 @@ const AdminLayout = () => {
         { path: '/reports', label: 'Laporan', icon: FileText },
     ];
 
+    // Logic untuk Header Dinamis
+    const getPageInfo = () => {
+        switch (location.pathname) {
+            case '/': return { title: 'Dashboard Real-time', subtitle: 'Pantau pergerakan pengunjung event hari ini' };
+            case '/members': return { title: 'Manajemen Member', subtitle: 'Registrasi member baru dan kelola data keychain NFC' };
+            case '/tenants': return { title: 'Data Tenant UMKM', subtitle: 'Integrasi data tenant dan promo diskon' };
+            case '/reports': return { title: 'Laporan Kunjungan', subtitle: 'Rekapitulasi data pengunjung selama event' };
+            default: return { title: 'Sistem Admin', subtitle: 'Peken Banyumasan' };
+        }
+    };
+
+    const pageInfo = getPageInfo();
+
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
+
+            {/* OVERLAY MOBILE (Gelap saat sidebar terbuka) */}
+            {isMobileMenuOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+
             {/* SIDEBAR */}
-            <aside className="w-64 bg-white border-r border-gray-200 flex-col hidden md:flex shrink-0">
-                <div className="p-6 border-b border-gray-200 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                        P
+            <aside className={`
+        fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+                <div className="p-6 border-b border-gray-200 flex items-center justify-between md:justify-start gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800 leading-tight">Peken</h2>
+                            <p className="text-xs text-gray-500 font-medium">Banyumasan</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-800 leading-tight">Peken</h2>
-                        <p className="text-xs text-gray-500 font-medium">Banyumasan</p>
-                    </div>
+                    {/* Tombol Close Sidebar (Hanya di Mobile) */}
+                    <button className="md:hidden text-gray-500" onClick={() => setIsMobileMenuOpen(false)}>
+                        <X size={24} />
+                    </button>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -42,10 +84,9 @@ const AdminLayout = () => {
                             <Link
                                 key={item.path}
                                 to={item.path}
+                                onClick={() => setIsMobileMenuOpen(false)} // Tutup sidebar mobile saat menu diklik
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
-                                    isActive
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                                    isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
                                 }`}
                             >
                                 <Icon size={20} /> {item.label}
@@ -65,18 +106,27 @@ const AdminLayout = () => {
             </aside>
 
             {/* MAIN CONTENT */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+            <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
                 {/* HEADER */}
-                <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-8 shrink-0">
-                    <div>
-                        {/* Title bisa dibuat dinamis nanti menggunakan Context atau match path */}
-                        <h1 className="text-2xl font-bold text-gray-800">Sistem Admin</h1>
-                        <p className="text-sm text-gray-500">Peken Banyumasan</p>
+                <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-8 shrink-0">
+                    <div className="flex items-center gap-4">
+                        {/* Tombol Hamburger (Hanya di Mobile) */}
+                        <button
+                            className="md:hidden text-gray-600 hover:text-blue-600"
+                            onClick={() => setIsMobileMenuOpen(true)}
+                        >
+                            <Menu size={24} />
+                        </button>
+                        <div>
+                            <h1 className="text-xl md:text-2xl font-bold text-gray-800">{pageInfo.title}</h1>
+                            <p className="text-xs md:text-sm text-gray-500 hidden sm:block">{pageInfo.subtitle}</p>
+                        </div>
                     </div>
+
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
-                            <div className="text-sm font-bold text-gray-800">Admin Utama</div>
-                            <div className="text-xs text-green-600 font-medium">Admin / Petugas</div>
+                            <div className="text-sm font-bold text-gray-800">{userData.nama}</div>
+                            <div className="text-xs text-green-600 font-medium capitalize">{userData.role}</div>
                         </div>
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 border border-blue-200">
                             <User size={20} />
@@ -84,8 +134,8 @@ const AdminLayout = () => {
                     </div>
                 </header>
 
-                {/* SCROLLABLE CONTENT (Halaman Spesifik akan render di sini) */}
-                <div className="flex-1 overflow-auto p-8">
+                {/* SCROLLABLE CONTENT */}
+                <div className="flex-1 overflow-auto p-4 md:p-8">
                     <Outlet />
                 </div>
             </main>
