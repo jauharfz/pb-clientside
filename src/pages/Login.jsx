@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, HelpCircle, ArrowRight, ShieldAlert } from 'lucide-react';
-import api from '../services/api'; // Import axios instance
+import api from '../services/api';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -21,14 +21,15 @@ const Login = () => {
         setError('');
 
         try {
-            // Sesuai API Contract: POST /auth/login
+            // POST /auth/login → response: { status, message, data: { token, user } }
             const response = await api.post('/auth/login', formData);
 
-            // Simpan token (bisa di localStorage atau Context/Zustand nantinya)
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            // [FIX] API membungkus payload di dalam .data.data (bukan .data langsung)
+            // OpenAPI LoginResponse: { status, message, data: { token, user: {...} } }
+            localStorage.setItem('token', response.data.data.token);
+            localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
-            navigate('/'); // Redirect ke dashboard
+            navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Email atau password salah. Silakan coba lagi.');
         } finally {

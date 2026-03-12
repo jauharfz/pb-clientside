@@ -12,11 +12,9 @@ const Tenants = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSync, setLastSync] = useState(new Date());
 
-    // State untuk Filter & Search
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
 
-    // Helper untuk styling dinamis berdasarkan kategori
     const getCategoryStyle = (category) => {
         const cat = category?.toLowerCase() || '';
         if (cat.includes('makanan')) {
@@ -28,16 +26,43 @@ const Tenants = () => {
         if (cat.includes('fashion') || cat.includes('kriya') || cat.includes('pakaian')) {
             return { icon: Shirt, bg: 'bg-purple-100', text: 'text-purple-600', badge: 'bg-purple-50 text-purple-700' };
         }
-        // Default style
         return { icon: Store, bg: 'bg-blue-100', text: 'text-blue-500', badge: 'bg-blue-50 text-blue-700' };
     };
 
-    // Fungsi Fetch Data Tenant
+    // [FIX] Fetch data tenant dari endpoint yang benar dan merge dengan data diskon
     const fetchTenants = useCallback(async () => {
         try {
             setIsLoading(true);
-            const response = await api.get('/tenants');
-            setTenants(response.data);
+
+            // [FIX 1] Endpoint /tenants TIDAK ADA di OpenAPI spec.
+            //   Gunakan GET /umkm → data tenant dari API eksternal kelompok UMKM (REQ-INTEG-001)
+            //   OpenAPI GET /umkm response: { status, source: "external_umkm_api", data: TenantUmkm[] }
+            //
+            // [FIX 2] Field promo_aktif tidak ada di TenantUmkm schema.
+            //   Data promo ada di GET /discounts → DiskonMember[] (REQ-MEMBER-002)
+            //   Fetch keduanya secara paralel, lalu merge berdasarkan tenant.id
+            const [umkmRes, discountsRes] = await Promise.all([
+                api.get('/umkm'),
+                api.get('/discounts', { params: { is_aktif: true } }),
+            ]);
+
+            // [FIX 3] Ekstrak dari response.data.data (bukan response.data langsung)
+            const umkmList = umkmRes.data.data || [];
+            const discountList = discountsRes.data.data || [];
+
+            // Merge: cari diskon aktif per tenant berdasarkan tenant.id
+            const tenantsWithPromo = umkmList.map((tenant) => {
+                const matchingDiscount = discountList.find(
+                    (d) => d.tenant?.id === tenant.id
+                );
+                return {
+                    ...tenant,
+                    // promo_aktif diisi dari deskripsi_diskon jika ada
+                    promo_aktif: matchingDiscount ? matchingDiscount.deskripsi_diskon : null,
+                };
+            });
+
+            setTenants(tenantsWithPromo);
         } catch (error) {
             console.error('Gagal mengambil data tenant:', error);
         } finally {
@@ -49,12 +74,9 @@ const Tenants = () => {
         fetchTenants();
     }, [fetchTenants]);
 
-    // Simulasi Sinkronisasi API Eksternal
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            // Simulasi delay jaringan untuk sinkronisasi
-            await new Promise(resolve => setTimeout(resolve, 1500));
             await fetchTenants();
             setLastSync(new Date());
         } catch (error) {
@@ -64,14 +86,12 @@ const Tenants = () => {
         }
     };
 
-    // Filter data berdasarkan search dan kategori
     const filteredTenants = tenants.filter(tenant => {
         const matchSearch = tenant.nama_tenant.toLowerCase().includes(searchQuery.toLowerCase());
         const matchCategory = selectedCategory === 'Semua Kategori' || tenant.kategori === selectedCategory;
         return matchSearch && matchCategory;
     });
 
-    // Dapatkan daftar kategori unik untuk dropdown
     const uniqueCategories = ['Semua Kategori', ...new Set(tenants.map(t => t.kategori))];
 
     return (
@@ -79,7 +99,6 @@ const Tenants = () => {
 
             {/* TOOLBAR */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
-                {/* Search & Filter */}
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <div className="relative w-full md:w-72">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -104,7 +123,6 @@ const Tenants = () => {
                     </select>
                 </div>
 
-                {/* Sync Button */}
                 <button
                     onClick={handleSync}
                     disabled={isSyncing}
@@ -146,32 +164,31 @@ const Tenants = () => {
 
                         return (
                             <div key={tenant.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition group flex flex-col h-full">
-                                {/* Header Card (Warna dinamis) */}
                                 <div className={`h-24 relative ${style.bg}`}>
                                     <div className="absolute -bottom-6 left-6 w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-xl">
                                         <Icon className={style.text} size={24} />
                                     </div>
-                                    {/* Stand Number (Opsional, jika ada di API) */}
+                                    {/* [FIX] Gunakan tenant.nomor_stand (field di TenantUmkm schema)
+                                        Bukan tenant.id.substring(0,4) yang hanya workaround */}
                                     <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-700 shadow-sm">
-                                        Stand {tenant.id.substring(0,4).toUpperCase()}
+                                        Stand {tenant.nomor_stand || '-'}
                                     </div>
                                 </div>
 
-                                {/* Body Card */}
                                 <div className="p-6 pt-8 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-1 gap-2">
                                         <h3 className="font-bold text-gray-800 text-lg leading-tight line-clamp-1" title={tenant.nama_tenant}>
                                             {tenant.nama_tenant}
                                         </h3>
                                         <span className={`${style.badge} text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap`}>
-                      {tenant.kategori}
-                    </span>
+                                            {tenant.kategori}
+                                        </span>
                                     </div>
                                     <p className="text-xs text-gray-500 mb-4 line-clamp-2 flex-1">
                                         {tenant.deskripsi}
                                     </p>
 
-                                    {/* Promo Section */}
+                                    {/* [FIX] promo_aktif sekarang diisi dari merge dengan GET /discounts */}
                                     {tenant.promo_aktif ? (
                                         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mt-auto">
                                             <div className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-1">Promo Member NFC</div>

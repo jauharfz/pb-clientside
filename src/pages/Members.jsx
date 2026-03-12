@@ -1,8 +1,8 @@
 // src/pages/Members.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    UserPlus, Wifi, Info, Search,
-    Edit, Ban, CheckCircle, Loader2, X
+    UserPlus, Wifi, Search,
+    Edit, Ban, CheckCircle, Loader2
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -13,10 +13,19 @@ const Members = () => {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5; // Ubah sesuai kebutuhan
+    const itemsPerPage = 5;
 
-    // Form State (Bisa untuk Create atau Edit)
-    const [formData, setFormData] = useState({ id: null, nama: '', no_hp: '', email: '', nfc_uid: '' });
+    // [FIX] Tambah field wajib OpenAPI CreateMemberRequest: status & tanggal_daftar
+    // OpenAPI CreateMemberRequest required: nfc_uid, nama, no_hp, status, tanggal_daftar
+    const [formData, setFormData] = useState({
+        id: null,
+        nama: '',
+        no_hp: '',
+        email: '',
+        nfc_uid: '',
+        status: 'aktif',
+        tanggal_daftar: new Date().toISOString().split('T')[0],
+    });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
@@ -24,9 +33,12 @@ const Members = () => {
     const fetchMembers = useCallback(async () => {
         try {
             setIsLoadingMembers(true);
+            // OpenAPI GET /members params: status (filter), search
             const response = await api.get('/members', { params: { search: searchQuery } });
-            setMembers(response.data);
-            setCurrentPage(1); // Reset ke halaman 1 setiap kali search berubah
+            // [FIX] API membungkus data di response.data.data
+            // OpenAPI GET /members response: { status: "success", data: [ ...Member[] ] }
+            setMembers(response.data.data || []);
+            setCurrentPage(1);
         } catch (error) {
             console.error('Gagal mengambil data member:', error);
         } finally {
@@ -46,25 +58,32 @@ const Members = () => {
     const handleScanNFC = () => {
         setIsScanning(true);
         setTimeout(() => {
-            const mockUid = Array.from({length: 4}, () => Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0')).join(':');
+            const mockUid = Array.from({ length: 7 }, () =>
+                Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0')
+            ).join(':');
             setFormData(prev => ({ ...prev, nfc_uid: mockUid }));
             setIsScanning(false);
         }, 2000);
     };
 
-    // Handler Submit (Create / Update)
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.nfc_uid) return alert('Silakan scan keychain NFC terlebih dahulu!');
 
         try {
             setIsSubmitting(true);
+            // [FIX] Pisahkan field 'id' dari payload → id tidak boleh dikirim ke body API
+            // PUT /members/{id}: id ada di path, bukan di body (UpdateMemberRequest tidak punya field id)
+            const { id, ...payload } = formData;
+
             if (isEditMode) {
-                // Asumsi API PUT /members/:id
-                await api.put(`/members/${formData.id}`, formData);
+                // OpenAPI: PUT /members/{id} dengan UpdateMemberRequest (semua field opsional)
+                await api.put(`/members/${id}`, payload);
                 alert('Data member berhasil diperbarui!');
             } else {
-                await api.post('/members', formData);
+                // OpenAPI: POST /members dengan CreateMemberRequest
+                // Required: nfc_uid, nama, no_hp, status, tanggal_daftar
+                await api.post('/members', payload);
                 alert('Member baru berhasil didaftarkan!');
             }
 
@@ -78,35 +97,48 @@ const Members = () => {
     };
 
     const resetForm = () => {
-        setFormData({ id: null, nama: '', no_hp: '', email: '', nfc_uid: '' });
+        setFormData({
+            id: null,
+            nama: '',
+            no_hp: '',
+            email: '',
+            nfc_uid: '',
+            status: 'aktif',
+            tanggal_daftar: new Date().toISOString().split('T')[0],
+        });
         setIsEditMode(false);
     };
 
-    // Handler Edit Button
     const handleEdit = (member) => {
         setFormData({
             id: member.id,
             nama: member.nama,
             no_hp: member.no_hp,
             email: member.email || '',
-            nfc_uid: member.nfc_uid
+            nfc_uid: member.nfc_uid,
+            // [FIX] Gunakan member.status (bukan member.status_terakhir yang tidak ada di schema)
+            // OpenAPI Member schema: status enum ['aktif', 'nonaktif']
+            status: member.status,
+            tanggal_daftar: member.tanggal_daftar,
         });
         setIsEditMode(true);
-        // Scroll ke atas agar form terlihat (opsional)
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Handler Toggle Status (Ban / Aktifkan)
+    // [FIX] Toggle status member:
+    //   - Endpoint PATCH /members/:id/status TIDAK ADA di OpenAPI spec
+    //   - Gunakan PUT /members/{id} (yang ada di spec) dengan field { status }
+    //   - Nilai status: 'aktif' | 'nonaktif' (sesuai Member schema enum)
+    //   - Bukan 'di_dalam' | 'di_luar' yang sebelumnya dipakai (tidak valid)
     const handleToggleStatus = async (member) => {
-        const action = member.status_terakhir === 'di_dalam' ? 'menonaktifkan' : 'mengaktifkan';
+        const newStatus = member.status === 'aktif' ? 'nonaktif' : 'aktif';
+        const action = newStatus === 'nonaktif' ? 'menonaktifkan' : 'mengaktifkan';
         if (!window.confirm(`Apakah Anda yakin ingin ${action} member ${member.nama}?`)) return;
 
         try {
-            // Asumsi API PATCH /members/:id/status
-            await api.patch(`/members/${member.id}/status`, {
-                status: member.status_terakhir === 'di_dalam' ? 'di_luar' : 'di_dalam'
-            });
-            fetchMembers(); // Refresh data
+            // OpenAPI: PUT /members/{id} dengan UpdateMemberRequest { status: 'aktif' | 'nonaktif' }
+            await api.put(`/members/${member.id}`, { status: newStatus });
+            fetchMembers();
         } catch (error) {
             alert('Gagal mengubah status member.');
         }
@@ -131,46 +163,97 @@ const Members = () => {
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800">{isEditMode ? 'Edit Member' : 'Registrasi Member'}</h3>
-                                <p className="text-xs text-gray-500">{isEditMode ? 'Perbarui data member' : 'Daftarkan keychain NFC baru'}</p>
+                                <p className="text-xs text-gray-400">{isEditMode ? 'Ubah data member terpilih' : 'Tambah member baru ke sistem'}</p>
                             </div>
                         </div>
                         {isEditMode && (
-                            <button onClick={resetForm} className="text-gray-400 hover:text-red-500 transition" title="Batal Edit">
-                                <X size={20} />
+                            <button onClick={resetForm} className="text-xs text-gray-400 hover:text-red-500 transition font-medium">
+                                Batal Edit
                             </button>
                         )}
                     </div>
 
-                    <form className="space-y-5" onSubmit={handleSubmit}>
-                        {/* Input Nama, No HP, Email sama seperti sebelumnya */}
+                    <form className="space-y-4" onSubmit={handleSubmit}>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
-                            <input type="text" name="nama" required value={formData.nama} onChange={handleInputChange} placeholder="Masukkan nama lengkap" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm" />
+                            <input
+                                type="text" name="nama" required
+                                value={formData.nama} onChange={handleInputChange}
+                                placeholder="Budi Santoso"
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Nomor Handphone <span className="text-red-500">*</span></label>
-                            <input type="tel" name="no_hp" required value={formData.no_hp} onChange={handleInputChange} placeholder="Contoh: 08123456789" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm" />
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">No. Handphone <span className="text-red-500">*</span></label>
+                            <input
+                                type="tel" name="no_hp" required
+                                value={formData.no_hp} onChange={handleInputChange}
+                                placeholder="081234567890"
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email <span className="text-gray-400 font-normal">(Opsional)</span></label>
-                            <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="email@contoh.com" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm" />
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email <span className="text-gray-400 font-normal">(opsional)</span></label>
+                            <input
+                                type="email" name="email"
+                                value={formData.email} onChange={handleInputChange}
+                                placeholder="email@contoh.com"
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            />
+                        </div>
+
+                        {/* [FIX] Tambah field 'status' — wajib di CreateMemberRequest, ada di UpdateMemberRequest */}
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Status <span className="text-red-500">*</span></label>
+                            <select
+                                name="status" required
+                                value={formData.status} onChange={handleInputChange}
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            >
+                                <option value="aktif">Aktif</option>
+                                <option value="nonaktif">Nonaktif</option>
+                            </select>
+                        </div>
+
+                        {/* [FIX] Tambah field 'tanggal_daftar' — wajib di CreateMemberRequest */}
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Daftar <span className="text-red-500">*</span></label>
+                            <input
+                                type="date" name="tanggal_daftar" required
+                                value={formData.tanggal_daftar} onChange={handleInputChange}
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            />
                         </div>
 
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">UID Keychain NFC <span className="text-red-500">*</span></label>
                             <div className="flex gap-2">
-                                <input type="text" readOnly required value={formData.nfc_uid} placeholder={isScanning ? "Menunggu tap NFC..." : "Scan NFC untuk mengisi..."} className={`w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl font-mono text-sm cursor-not-allowed ${isScanning ? 'text-blue-500 animate-pulse' : 'text-gray-600'}`} />
-                                <button type="button" onClick={handleScanNFC} disabled={isScanning} className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 font-medium text-sm whitespace-nowrap shadow-sm shadow-blue-200">
+                                <input
+                                    type="text" readOnly required
+                                    value={formData.nfc_uid}
+                                    placeholder={isScanning ? "Menunggu tap NFC..." : "Scan NFC untuk mengisi..."}
+                                    className={`w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl font-mono text-sm cursor-not-allowed ${isScanning ? 'text-blue-500 animate-pulse' : 'text-gray-600'}`}
+                                />
+                                <button
+                                    type="button" onClick={handleScanNFC} disabled={isScanning}
+                                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 font-medium text-sm whitespace-nowrap shadow-sm shadow-blue-200"
+                                >
                                     {isScanning ? <Loader2 size={16} className="animate-spin" /> : <Wifi size={16} />} Scan
                                 </button>
                             </div>
                         </div>
 
                         <div className="pt-4 border-t border-gray-100">
-                            <button type="submit" disabled={isSubmitting || isScanning} className={`w-full text-white font-bold py-3 px-4 rounded-xl transition shadow-md flex justify-center items-center gap-2 ${isEditMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-800 hover:bg-gray-900'}`}>
-                                {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : (isEditMode ? 'Simpan Perubahan' : 'Simpan Member Baru')}
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || isScanning}
+                                className={`w-full text-white font-bold py-3 px-4 rounded-xl transition shadow-md flex justify-center items-center gap-2 ${isEditMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-800 hover:bg-gray-900'}`}
+                            >
+                                {isSubmitting
+                                    ? <Loader2 size={18} className="animate-spin" />
+                                    : (isEditMode ? 'Simpan Perubahan' : 'Simpan Member Baru')}
                             </button>
                         </div>
                     </form>
@@ -184,8 +267,15 @@ const Members = () => {
                     <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
                         <h3 className="text-lg font-bold text-gray-800">Daftar Member Terdaftar</h3>
                         <div className="relative w-full sm:w-64">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={16} className="text-gray-400" /></div>
-                            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama atau UID..." className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition" />
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search size={16} className="text-gray-400" />
+                            </div>
+                            <input
+                                type="text" value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Cari nama atau UID..."
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition"
+                            />
                         </div>
                     </div>
 
@@ -202,12 +292,21 @@ const Members = () => {
                             </thead>
                             <tbody className="text-sm divide-y divide-gray-50">
                             {isLoadingMembers ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500"><Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-500" />Memuat data...</td></tr>
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                                        <Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
+                                        Memuat data...
+                                    </td>
+                                </tr>
                             ) : currentMembers.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">Tidak ada data ditemukan.</td></tr>
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">Tidak ada data ditemukan.</td>
+                                </tr>
                             ) : (
                                 currentMembers.map((member) => (
-                                    <tr key={member.id} className={`hover:bg-gray-50 transition group ${member.status_terakhir !== 'di_dalam' && 'opacity-75'}`}>
+                                    // [FIX] Gunakan member.status === 'aktif' (bukan member.status_terakhir)
+                                    // OpenAPI Member schema: status enum ['aktif', 'nonaktif']
+                                    <tr key={member.id} className={`hover:bg-gray-50 transition group ${member.status !== 'aktif' && 'opacity-75'}`}>
                                         <td className="px-6 py-4">
                                             <div className="font-bold text-gray-800">{member.nama}</div>
                                             <div className="text-xs text-gray-500">Daftar: {member.tanggal_daftar || '-'}</div>
@@ -220,22 +319,32 @@ const Members = () => {
                                             <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200">{member.nfc_uid}</span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            {member.status_terakhir === 'di_dalam' ? (
+                                            {/* [FIX] Cek member.status ('aktif'/'nonaktif'), bukan member.status_terakhir */}
+                                            {member.status === 'aktif' ? (
                                                 <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-green-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aktif
-                          </span>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aktif
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Nonaktif
-                          </span>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Nonaktif
+                                                </span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <button onClick={() => handleEdit(member)} className="text-gray-400 hover:text-blue-600 transition p-1" title="Edit Data">
+                                            <button
+                                                onClick={() => handleEdit(member)}
+                                                className="text-gray-400 hover:text-blue-600 transition p-1"
+                                                title="Edit Data"
+                                            >
                                                 <Edit size={16} />
                                             </button>
-                                            <button onClick={() => handleToggleStatus(member)} className={`transition p-1 ml-2 ${member.status_terakhir === 'di_dalam' ? 'text-gray-400 hover:text-red-600' : 'text-gray-400 hover:text-green-600'}`} title={member.status_terakhir === 'di_dalam' ? 'Nonaktifkan' : 'Aktifkan'}>
-                                                {member.status_terakhir === 'di_dalam' ? <Ban size={16} /> : <CheckCircle size={16} />}
+                                            {/* [FIX] Gunakan member.status ('aktif'/'nonaktif') untuk logika toggle */}
+                                            <button
+                                                onClick={() => handleToggleStatus(member)}
+                                                className={`transition p-1 ml-2 ${member.status === 'aktif' ? 'text-gray-400 hover:text-red-600' : 'text-gray-400 hover:text-green-600'}`}
+                                                title={member.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+                                            >
+                                                {member.status === 'aktif' ? <Ban size={16} /> : <CheckCircle size={16} />}
                                             </button>
                                         </td>
                                     </tr>
@@ -257,8 +366,6 @@ const Members = () => {
                                 >
                                     &laquo; Prev
                                 </button>
-
-                                {/* Generate Page Numbers */}
                                 {[...Array(totalPages)].map((_, index) => (
                                     <button
                                         key={index + 1}
@@ -268,7 +375,6 @@ const Members = () => {
                                         {index + 1}
                                     </button>
                                 ))}
-
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                     disabled={currentPage === totalPages}
