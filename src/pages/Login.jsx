@@ -48,7 +48,7 @@ const Login = () => {
                 <div className="relative z-10 flex items-center gap-3">
                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-700 font-bold text-2xl shadow-lg">P</div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white tracking-wide">Peken Banyumasan</h1>
+                        <h1 className="text-2xl font-bold text-white tracking-wide"> Banyumasan</h1>
                         <p className="text-blue-200 text-sm font-medium">Sistem Manajemen Event</p>
                     </div>
                 </div>
@@ -56,12 +56,12 @@ const Login = () => {
                 <div className="relative z-10 max-w-md">
                     <h2 className="text-4xl font-bold text-white mb-6 leading-tight">Kelola pengunjung event dengan lebih cerdas.</h2>
                     <p className="text-blue-100 text-lg leading-relaxed">
-                        Pantau data real-time, kelola member NFC, dan optimalkan operasional event Peken Banyumasan dalam satu platform terintegrasi.
+                        Pantau data real-time, kelola member NFC, dan optimalkan operasional event Pekan Banyumasan dalam satu platform terintegrasi.
                     </p>
                 </div>
 
                 <div className="relative z-10 text-blue-200 text-sm">
-                    &copy; 2026 Panitia Peken Banyumasan. All rights reserved.
+                    &copy; 2026 Panitia Pekan Banyumasan. All rights reserved.
                 </div>
             </div>
 
@@ -76,7 +76,7 @@ const Login = () => {
                 <div className="w-full max-w-md">
                     <div className="flex lg:hidden items-center gap-3 mb-10">
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">P</div>
-                        <h1 className="text-xl font-bold text-gray-900 tracking-wide">Peken Banyumasan</h1>
+                        <h1 className="text-xl font-bold text-gray-900 tracking-wide">Pekan Banyumasan</h1>
                     </div>
 
                     <div className="mb-10">
@@ -100,7 +100,7 @@ const Login = () => {
                                 <input
                                     type="email" name="email" required
                                     value={formData.email} onChange={handleChange}
-                                    placeholder="admin@pekenbanyumas.com"
+                                    placeholder="admin@Pekanbanyumas.com"
                                     className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm text-sm"
                                 />
                             </div>

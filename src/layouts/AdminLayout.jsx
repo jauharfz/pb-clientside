@@ -49,7 +49,7 @@ const AdminLayout = () => {
             case '/members':  return { title: 'Manajemen Member',     subtitle: 'Registrasi member baru dan kelola data keychain NFC' };
             case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant dan promo diskon' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
-            default:          return { title: 'Sistem Admin',         subtitle: 'Peken Banyumasan' };
+            default:          return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
         }
     };
 
@@ -85,7 +85,7 @@ const AdminLayout = () => {
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800 leading-tight">Peken</h2>
+                            <h2 className="text-lg font-bold text-gray-800 leading-tight">Pekan</h2>
                             <p className="text-xs text-gray-500 font-medium">Banyumasan</p>
                         </div>
                     </div>
