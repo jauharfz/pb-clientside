@@ -107,10 +107,7 @@ const Login = () => {
                         </div>
 
                         <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-semibold text-gray-700">Password</label>
-                                <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition">Lupa Password?</a>
-                            </div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <Lock size={18} className="text-gray-400" />

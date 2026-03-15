@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { PieChart, Users, Store, FileText, LogOut, User, Menu, X, ShieldCheck, UserCog } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     // OpenAPI AdminUser schema: { id, nama, email, role: 'admin' | 'petugas' }
     const [userData, setUserData] = useState({ nama: 'Admin', role: 'admin' });
@@ -19,20 +21,20 @@ const AdminLayout = () => {
     }, []);
 
     const handleLogout = () => {
-        if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            navigate('/login');
-        }
+        setShowLogoutConfirm(true);
     };
 
-    // [FIX] Filter navItems berdasarkan role.
+    const executeLogout = () => {
+        setShowLogoutConfirm(false);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+    };
+
+    // Filter navItems berdasarkan role.
     // OpenAPI REQ-AUTH-002 RBAC:
     //   - Admin:   akses penuh ke semua halaman
-    //   - Petugas: hanya Dashboard (input manual pengunjung biasa)
-    //              /members  → GET/POST/PUT /members     → Admin only
-    //              /tenants  → GET /umkm                 → Admin only
-    //              /reports  → GET /reports, /export     → Admin only
+    //   - Petugas: hanya Dashboard
     const allNavItems = [
         { path: '/',        label: 'Dashboard',     icon: PieChart,  roles: ['admin', 'petugas'] },
         { path: '/members', label: 'Kelola Member', icon: Users,     roles: ['admin'] },
@@ -40,7 +42,6 @@ const AdminLayout = () => {
         { path: '/reports', label: 'Laporan',       icon: FileText,  roles: ['admin'] },
     ];
 
-    // Tampilkan hanya menu yang sesuai role user yang sedang login
     const navItems = allNavItems.filter(item => item.roles.includes(userData.role));
 
     const getPageInfo = () => {
@@ -55,17 +56,27 @@ const AdminLayout = () => {
 
     const pageInfo = getPageInfo();
 
-    // [FIX] Style badge role: admin → hijau, petugas → kuning/amber
-    // Sebelumnya semua role diberi warna hijau tanpa pembedaan
+    // Style badge role: admin → hijau, petugas → amber
     const roleBadgeStyle = userData.role === 'admin'
         ? 'text-green-600'
         : 'text-amber-600';
 
-    // Icon role: admin → ShieldCheck, petugas → UserCog
     const RoleIcon = userData.role === 'admin' ? ShieldCheck : UserCog;
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
+
+            {/* ConfirmDialog logout */}
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                title="Konfirmasi Logout"
+                message="Apakah Anda yakin ingin keluar dari sistem?"
+                confirmLabel="Ya, Keluar"
+                cancelLabel="Batal"
+                variant="danger"
+                onConfirm={executeLogout}
+                onCancel={() => setShowLogoutConfirm(false)}
+            />
 
             {/* OVERLAY MOBILE */}
             {isMobileMenuOpen && (
@@ -96,7 +107,6 @@ const AdminLayout = () => {
 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-2">Menu Utama</div>
-                    {/* [FIX] navItems sudah difilter sesuai role — petugas hanya lihat Dashboard */}
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
@@ -117,7 +127,7 @@ const AdminLayout = () => {
                     })}
                 </nav>
 
-                {/* Info Role di Sidebar (opsional tapi membantu orientasi user) */}
+                {/* Info Role di Sidebar */}
                 <div className="px-4 py-3 border-t border-gray-100 mx-4 mb-1">
                     <div className={`flex items-center gap-2 text-xs font-semibold ${roleBadgeStyle}`}>
                         <RoleIcon size={14} />
@@ -156,7 +166,6 @@ const AdminLayout = () => {
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
                             <div className="text-sm font-bold text-gray-800">{userData.nama}</div>
-                            {/* [FIX] Warna role badge sesuai role: admin hijau, petugas amber */}
                             <div className={`text-xs font-medium capitalize flex items-center justify-end gap-1 ${roleBadgeStyle}`}>
                                 <RoleIcon size={12} />
                                 {userData.role === 'admin' ? 'Administrator' : 'Petugas'}

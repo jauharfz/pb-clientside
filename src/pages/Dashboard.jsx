@@ -7,9 +7,11 @@ import {
     CreditCard, User, AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const toast = useToast();
 
     const [stats, setStats] = useState({
         di_dalam: 0,
@@ -71,29 +73,23 @@ const Dashboard = () => {
 
     const handleManualInput = async (aksi) => {
         /**
-         * [FIX] Guard event_id null.
-         *
-         * activeEventId diisi saat fetchStats() berhasil. Jika stats belum
-         * selesai dimuat atau endpoint gagal, activeEventId tetap null.
-         * Mengirim event_id: null ke POST /visitors/manual akan ditolak API
-         * karena event_id adalah required field (OpenAPI ManualVisitorRequest).
-         *
-         * Tombol sudah di-disable via prop `disabled` saat activeEventId null,
-         * tapi guard di sini sebagai lapisan kedua untuk keamanan.
+         * Guard event_id null — lapisan kedua setelah tombol disabled.
+         * Tombol sudah di-disable via prop `disabled` saat activeEventId null.
          */
         if (!activeEventId) {
-            alert('Event aktif belum terdeteksi. Tunggu sebentar atau refresh halaman.');
+            toast.warning('Event aktif belum terdeteksi. Tunggu sebentar atau refresh halaman.');
             return;
         }
 
         try {
             setSubmittingAction(aksi);
             await api.post('/visitors/manual', { aksi, event_id: activeEventId });
+            // Umpan balik sukses setelah input manual berhasil
+            toast.success(`Pengunjung ${aksi === 'masuk' ? 'masuk' : 'keluar'} berhasil dicatat.`);
             fetchStats();
             fetchActivities();
         } catch (error) {
-            // error.message sudah di-parse oleh interceptor (termasuk blob)
-            alert(`Gagal mencatat pengunjung ${aksi}: ${error.message || 'Silakan coba lagi.'}`);
+            toast.error(`Gagal mencatat pengunjung ${aksi}: ${error.message || 'Silakan coba lagi.'}`);
             console.error(error);
         } finally {
             setSubmittingAction(null);
@@ -113,7 +109,7 @@ const Dashboard = () => {
     return (
         <div className="space-y-8 font-sans">
 
-            {/* [FIX] Banner peringatan jika event_id belum tersedia setelah stats dimuat */}
+            {/* Banner peringatan jika event_id belum tersedia setelah stats dimuat */}
             {!isLoadingStats && !activeEventId && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3">
                     <AlertCircle size={18} className="text-yellow-600 shrink-0" />
@@ -200,11 +196,6 @@ const Dashboard = () => {
                         <div className="space-y-4">
                             <button
                                 onClick={() => handleManualInput('masuk')}
-                                /**
-                                 * [FIX] disabled diperluas: selain saat ada aksi berjalan,
-                                 * juga disabled ketika activeEventId belum tersedia.
-                                 * Mencegah pengiriman event_id: null ke API.
-                                 */
                                 disabled={isManualButtonDisabled}
                                 title={!activeEventId ? 'Menunggu data event aktif...' : ''}
                                 className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 disabled:cursor-not-allowed text-white rounded-2xl p-6 flex flex-col items-center justify-center transition-all shadow-lg shadow-green-200 group"
@@ -329,12 +320,6 @@ const Dashboard = () => {
                         </div>
 
                         <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">
-                            {/**
-                             * [FIX] "Lihat Semua" sebelumnya adalah <span> tanpa onClick
-                             * sama sekali — tidak bisa diklik untuk melakukan apapun.
-                             * Diganti dengan <button> + navigate('/reports') menggunakan
-                             * useNavigate dari react-router-dom.
-                             */}
                             <button
                                 onClick={() => navigate('/reports')}
                                 className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition"
