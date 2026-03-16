@@ -59,7 +59,7 @@ const MemberDrawer = ({
                 ${isEditMode ? 'bg-amber-50' : 'bg-gray-50'}`}>
                 <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center
-                        ${isEditMode ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                        ${isEditMode ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-700'}`}>
                         {isEditMode ? <Edit size={18} /> : <UserPlus size={18} />}
                     </div>
                     <div>
@@ -92,7 +92,7 @@ const MemberDrawer = ({
                             type="text" name="nama" required
                             value={formData.nama} onChange={onChange}
                             placeholder="Budi Santoso"
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"
                         />
                     </div>
 
@@ -104,7 +104,7 @@ const MemberDrawer = ({
                             type="tel" name="no_hp" required
                             value={formData.no_hp} onChange={onChange}
                             placeholder="081234567890"
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"
                         />
                     </div>
 
@@ -116,7 +116,7 @@ const MemberDrawer = ({
                             type="email" name="email"
                             value={formData.email} onChange={onChange}
                             placeholder="email@contoh.com"
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"
                         />
                     </div>
 
@@ -128,7 +128,7 @@ const MemberDrawer = ({
                         <select
                             name="status" required
                             value={formData.status} onChange={onChange}
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"
                         >
                             <option value="aktif">Aktif</option>
                             <option value="nonaktif">Nonaktif</option>
@@ -143,7 +143,7 @@ const MemberDrawer = ({
                         <input
                             type="date" name="tanggal_daftar" required
                             value={formData.tanggal_daftar} onChange={onChange}
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-sm"
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"
                         />
                     </div>
 
@@ -158,11 +158,11 @@ const MemberDrawer = ({
                                 value={formData.nfc_uid}
                                 placeholder={isScanning ? 'Menunggu tap NFC...' : 'Scan NFC untuk mengisi...'}
                                 className={`w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl font-mono text-sm cursor-not-allowed
-                                    ${isScanning ? 'text-blue-500 animate-pulse' : 'text-gray-600'}`}
+                                    ${isScanning ? 'text-green-600 animate-pulse' : 'text-gray-600'}`}
                             />
                             <button
                                 type="button" onClick={onScan} disabled={isScanning}
-                                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-xl transition flex items-center gap-2 font-medium text-sm whitespace-nowrap shadow-sm shadow-blue-200"
+                                className="bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white px-4 py-2.5 rounded-xl transition flex items-center gap-2 font-medium text-sm whitespace-nowrap shadow-sm shadow-green-200"
                             >
                                 {isScanning ? <Loader2 size={16} className="animate-spin" /> : <Wifi size={16} />}
                                 Scan
@@ -391,7 +391,7 @@ const Members = () => {
                                 type="text" value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Cari nama atau UID..."
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition"
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm transition"
                             />
                         </div>
                         <button
@@ -417,7 +417,7 @@ const Members = () => {
                             onClick={() => { setStatusFilter(tab.key); setCurrentPage(1); }}
                             className={`relative flex items-center gap-2 px-4 py-3 text-sm font-semibold transition border-b-2 -mb-px ${
                                 statusFilter === tab.key
-                                    ? 'border-blue-600 text-blue-600'
+                                    ? 'border-green-700 text-green-700'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
@@ -426,7 +426,7 @@ const Members = () => {
                                 statusFilter === tab.key
                                     ? tab.key === 'nonaktif'
                                         ? 'bg-red-100 text-red-600'
-                                        : 'bg-blue-100 text-blue-600'
+                                        : 'bg-green-100 text-green-700'
                                     : 'bg-gray-100 text-gray-400'
                             }`}>
                                 {tab.count}
@@ -451,7 +451,7 @@ const Members = () => {
                         {isLoadingMembers ? (
                             <tr>
                                 <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
+                                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-green-600" />
                                     Memuat data...
                                 </td>
                             </tr>
@@ -491,7 +491,7 @@ const Members = () => {
                                     <td className="px-6 py-4 text-right">
                                         <button
                                             onClick={() => openEditDrawer(member)}
-                                            className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-lg hover:bg-blue-50"
+                                            className="text-gray-400 hover:text-green-700 transition p-1.5 rounded-lg hover:bg-green-50"
                                             title="Edit Data"
                                         >
                                             <Edit size={16} />
@@ -540,7 +540,7 @@ const Members = () => {
                                     onClick={() => setCurrentPage(i + 1)}
                                     className={`px-3 py-1 border rounded transition text-xs ${
                                         currentPage === i + 1
-                                            ? 'bg-blue-50 text-blue-600 border-blue-200 font-semibold'
+                                            ? 'bg-green-50 text-green-700 border-green-200 font-semibold'
                                             : 'border-gray-200 hover:bg-gray-50'
                                     }`}
                                 >

@@ -129,7 +129,7 @@ const Reports = () => {
             {reportData?.ringkasan && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center shrink-0">
                             <Users size={18} />
                         </div>
                         <div>
@@ -167,13 +167,13 @@ const Reports = () => {
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium cursor-pointer shadow-sm"
+                            className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm"
                         />
                         <div className="relative">
                             <select
                                 value={filterType}
                                 onChange={(e) => setFilterType(e.target.value)}
-                                className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
+                                className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
                             >
                                 <option>Semua Tipe Pengunjung</option>
                                 <option>Hanya Member (NFC)</option>
@@ -217,7 +217,7 @@ const Reports = () => {
                         {isLoading ? (
                             <tr>
                                 <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
-                                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
+                                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-green-600" />
                                     Memuat data laporan...
                                 </td>
                             </tr>
@@ -245,7 +245,7 @@ const Reports = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             {row.tipe_pengunjung === 'member' ? (
-                                                <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-semibold border border-blue-100">
+                                                <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-800 px-2.5 py-1 rounded-md text-xs font-semibold border border-green-100">
                                                     <IdCard size={14} /> Member
                                                 </span>
                                             ) : (
@@ -346,7 +346,7 @@ const Reports = () => {
                                     onClick={() => setCurrentPage(page)}
                                     className={`px-3 py-1.5 border rounded-lg transition text-xs font-medium ${
                                         page === safeCurrentPage
-                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            ? 'bg-green-700 text-white border-green-700'
                                             : 'border-gray-200 hover:bg-gray-50'
                                     }`}
                                 >
@@ -387,17 +387,17 @@ const Reports = () => {
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-                        <div className="bg-blue-600 p-5 flex items-center justify-between">
+                        <div className="bg-green-700 p-5 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white">
                                     <Download size={20} />
                                 </div>
                                 <div className="text-white">
                                     <h3 className="font-bold text-lg leading-tight">Konfirmasi Export</h3>
-                                    <p className="text-blue-100 text-xs">Laporan Kunjungan Event</p>
+                                    <p className="text-green-100 text-xs">Laporan Kunjungan Event</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-blue-200 hover:text-white transition">
+                            <button onClick={() => setIsModalOpen(false)} className="text-green-200 hover:text-white transition">
                                 <X size={24} />
                             </button>
                         </div>
@@ -445,7 +445,7 @@ const Reports = () => {
                             <button
                                 onClick={handleExport}
                                 disabled={isExporting || filteredReports.length === 0}
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold text-sm rounded-xl shadow-md transition flex items-center gap-2"
+                                className="px-5 py-2.5 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white font-semibold text-sm rounded-xl shadow-md transition flex items-center gap-2"
                             >
                                 {isExporting ? (
                                     <><Loader2 size={16} className="animate-spin" /> Memproses...</>

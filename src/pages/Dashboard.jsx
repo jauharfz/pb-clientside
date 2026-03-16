@@ -124,18 +124,18 @@ const Dashboard = () => {
 
                 {/* Card 1: Sedang di Dalam */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
                     <div className="flex justify-between items-start mb-4 relative z-10">
                         <div className="text-gray-500 text-sm font-medium">Sedang di Dalam</div>
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center">
                             <Users size={16} />
                         </div>
                     </div>
                     <div className="text-4xl font-bold text-gray-800 mb-1">
                         {isLoadingStats ? '...' : stats.di_dalam}
                     </div>
-                    <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> Live Update
+                    <div className="text-xs text-green-700 font-medium flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Update
                     </div>
                 </div>
 
@@ -236,7 +236,7 @@ const Dashboard = () => {
                             <h3 className="text-lg font-bold text-gray-800">Aktivitas Tap & Input Terbaru</h3>
                             <button
                                 onClick={() => { fetchStats(); fetchActivities(); }}
-                                className="text-sm text-blue-600 font-medium hover:underline flex items-center gap-1"
+                                className="text-sm text-green-700 font-medium hover:underline flex items-center gap-1"
                             >
                                 Refresh <RefreshCw size={14} className={isLoadingActivities ? "animate-spin" : ""} />
                             </button>
@@ -275,7 +275,7 @@ const Dashboard = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 {act.tipe_pengunjung === 'member' ? (
-                                                    <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-semibold border border-blue-100">
+                                                    <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-800 px-2.5 py-1 rounded-md text-xs font-semibold border border-green-100">
                                                         <CreditCard size={12} /> Member
                                                     </span>
                                                 ) : (
@@ -322,7 +322,7 @@ const Dashboard = () => {
                         <div className="p-4 border-t border-gray-100 bg-gray-50 text-center">
                             <button
                                 onClick={() => navigate('/reports')}
-                                className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition"
+                                className="text-sm font-semibold text-green-700 hover:text-green-900 transition"
                             >
                                 Lihat Semua Riwayat Kunjungan &rarr;
                             </button>

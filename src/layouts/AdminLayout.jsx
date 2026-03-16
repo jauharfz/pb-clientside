@@ -94,7 +94,7 @@ const AdminLayout = () => {
             `}>
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between md:justify-start gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
+                        <div className="w-10 h-10 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
                         <div>
                             <h2 className="text-lg font-bold text-gray-800 leading-tight">Pekan</h2>
                             <p className="text-xs text-gray-500 font-medium">Banyumasan</p>
@@ -117,8 +117,8 @@ const AdminLayout = () => {
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
                                     isActive
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                                        ? 'bg-green-50 text-green-800'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-green-700'
                                 }`}
                             >
                                 <Icon size={20} /> {item.label}
@@ -152,7 +152,7 @@ const AdminLayout = () => {
                 <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-8 shrink-0">
                     <div className="flex items-center gap-4">
                         <button
-                            className="md:hidden text-gray-600 hover:text-blue-600"
+                            className="md:hidden text-gray-600 hover:text-green-700"
                             onClick={() => setIsMobileMenuOpen(true)}
                         >
                             <Menu size={24} />
@@ -171,7 +171,7 @@ const AdminLayout = () => {
                                 {userData.role === 'admin' ? 'Administrator' : 'Petugas'}
                             </div>
                         </div>
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 border border-blue-200">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-700 border border-green-200">
                             <User size={20} />
                         </div>
                     </div>

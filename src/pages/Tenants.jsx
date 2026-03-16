@@ -26,7 +26,7 @@ const Tenants = () => {
         if (cat.includes('fashion') || cat.includes('kriya') || cat.includes('pakaian')) {
             return { icon: Shirt, bg: 'bg-purple-100', text: 'text-purple-600', badge: 'bg-purple-50 text-purple-700' };
         }
-        return { icon: Store, bg: 'bg-blue-100', text: 'text-blue-500', badge: 'bg-blue-50 text-blue-700' };
+        return { icon: Store, bg: 'bg-green-100', text: 'text-green-600', badge: 'bg-green-50 text-green-800' };
     };
 
     // [FIX] Fetch data tenant dari endpoint yang benar dan merge dengan data diskon
@@ -109,13 +109,13 @@ const Tenants = () => {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Cari nama tenant..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-sm"
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm shadow-sm"
                         />
                     </div>
                     <select
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="bg-white border border-gray-200 text-gray-700 py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-sm cursor-pointer hidden sm:block"
+                        className="bg-white border border-gray-200 text-gray-700 py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm shadow-sm cursor-pointer hidden sm:block"
                     >
                         {uniqueCategories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
@@ -126,7 +126,7 @@ const Tenants = () => {
                 <button
                     onClick={handleSync}
                     disabled={isSyncing}
-                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-md shadow-blue-200"
+                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-md shadow-green-200"
                 >
                     <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
                     {isSyncing ? 'Menyinkronkan...' : 'Sinkronisasi API UMKM'}
@@ -148,7 +148,7 @@ const Tenants = () => {
             {/* GRID CARDS TENANT */}
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                    <RefreshCw size={32} className="animate-spin mb-4 text-blue-500" />
+                    <RefreshCw size={32} className="animate-spin mb-4 text-green-600" />
                     <p>Memuat data tenant UMKM...</p>
                 </div>
             ) : filteredTenants.length === 0 ? (
@@ -190,9 +190,9 @@ const Tenants = () => {
 
                                     {/* [FIX] promo_aktif sekarang diisi dari merge dengan GET /discounts */}
                                     {tenant.promo_aktif ? (
-                                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mt-auto">
-                                            <div className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-1">Promo Member NFC</div>
-                                            <div className="font-semibold text-blue-800 text-sm leading-tight">
+                                        <div className="bg-green-50 border border-green-100 rounded-xl p-3 mt-auto">
+                                            <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">Promo Member NFC</div>
+                                            <div className="font-semibold text-green-900 text-sm leading-tight">
                                                 {tenant.promo_aktif}
                                             </div>
                                         </div>
