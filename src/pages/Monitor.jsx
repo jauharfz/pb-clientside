@@ -1,5 +1,4 @@
 // src/pages/Monitor.jsx
-// Halaman display monitor publik untuk layar besar / proyektor di venue.
 // AUTO THEME: Siang (06:00–17:30) → light | Sore (17:30–19:00) → warm | Malam (19:00–06:00) → dark
 // AUTH: GET /dashboard/stats memerlukan JWT — buka dari browser dengan sesi admin aktif.
 
@@ -11,17 +10,15 @@ import api from '../services/api';
 const REFRESH_INTERVAL = 10;
 
 /* ─── Theme Resolver ───────────────────────────────────────────────── */
-// Kembalikan 'day' | 'dusk' | 'night' berdasarkan jam saat ini.
 const getThemeByHour = (date) => {
     const h = date.getHours() + date.getMinutes() / 60;
-    if (h >= 6 && h < 17.5)  return 'day';
-    if (h >= 17.5 && h < 19)  return 'dusk';
+    if (h >= 6 && h < 17.5) return 'day';
+    if (h >= 17.5 && h < 19) return 'dusk';
     return 'night';
 };
 
 const THEMES = {
     day: {
-        // Putih terang, teks gelap, kontras maksimal untuk outdoor/dekat jendela
         name:         'Siang',
         root:         { background: '#f0fdf4' },
         bgDot:        { backgroundImage: 'radial-gradient(circle, #15803d 1px, transparent 1px)', opacity: 0.06 },
@@ -45,14 +42,14 @@ const THEMES = {
         secCard:      { background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' },
         secLabel:     { color: 'rgba(20,83,45,0.45)' },
         secAccents:   ['#15803d', '#16a34a', '#059669'],
-        footer:       { borderTopColor: 'rgba(0,0,0,0.06)', background: 'rgba(240,253,244,0.85)' },
+        // [FIX 1] footer pakai borderTop shorthand (bukan hanya borderTopColor) agar garis separator tampil
+        footer:       { borderTop: '1px solid rgba(0,0,0,0.06)', background: 'rgba(240,253,244,0.85)' },
         footerText:   { color: '#9ca3af' },
         progressBar:  { background: 'rgba(0,0,0,0.08)' },
         progressFill: { background: 'linear-gradient(90deg, #15803d, #4ade80)' },
         themeTag:     { color: '#16a34a', background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.2)' },
     },
     dusk: {
-        // Amber/warm — transisi sore menuju malam
         name:         'Sore',
         root:         { background: '#1c1007' },
         bgDot:        { backgroundImage: 'radial-gradient(circle, #d97706 1px, transparent 1px)', opacity: 0.04 },
@@ -76,14 +73,13 @@ const THEMES = {
         secCard:      { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: 'none' },
         secLabel:     { color: 'rgba(255,255,255,0.35)' },
         secAccents:   ['#fbbf24', '#f59e0b', '#fb923c'],
-        footer:       { borderTopColor: 'rgba(255,255,255,0.06)', background: 'rgba(28,16,7,0.7)' },
+        footer:       { borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(28,16,7,0.7)' },
         footerText:   { color: '#4b5563' },
         progressBar:  { background: 'rgba(255,255,255,0.07)' },
         progressFill: { background: 'linear-gradient(90deg, #b45309, #fbbf24)' },
         themeTag:     { color: '#f59e0b', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.2)' },
     },
     night: {
-        // Dark green — malam hari
         name:         'Malam',
         root:         { background: '#040d07' },
         bgDot:        { backgroundImage: 'radial-gradient(circle, #16a34a 1px, transparent 1px)', opacity: 0.03 },
@@ -107,7 +103,7 @@ const THEMES = {
         secCard:      { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: 'none' },
         secLabel:     { color: 'rgba(255,255,255,0.35)' },
         secAccents:   ['#4ade80', '#a3e635', '#86efac'],
-        footer:       { borderTopColor: 'rgba(255,255,255,0.06)', background: 'rgba(4,13,7,0.6)' },
+        footer:       { borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(4,13,7,0.6)' },
         footerText:   { color: '#374151' },
         progressBar:  { background: 'rgba(255,255,255,0.07)' },
         progressFill: { background: 'linear-gradient(90deg, #15803d, #4ade80)' },
@@ -205,7 +201,7 @@ const Monitor = () => {
     /* ── Error: Auth ── */
     if (error === 'auth') {
         return (
-            <div className="mon" style={{ ...BASE.root, ...t.root, alignItems:'center', justifyContent:'center', textAlign:'center', padding:'2rem' }}>
+            <div className="mon" style={{ ...BASE.root, ...t.root, alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem' }}>
                 <style>{GLOBAL_STYLES}</style>
                 <WifiOff size={48} style={{ color: '#f87171', marginBottom: '1.5rem' }} />
                 <h1 style={{ color: t.brandName.color, fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>
@@ -214,8 +210,11 @@ const Monitor = () => {
                 <p style={{ color: '#6b7280', maxWidth: '28rem', lineHeight: 1.7, marginBottom: '2rem', fontSize: '0.9rem' }}>
                     Halaman monitor memerlukan sesi admin aktif. Buka dari browser yang sama di mana Anda sudah login sebagai admin.
                 </p>
-                <Link to="/login" style={{ display:'inline-flex', alignItems:'center', gap:'0.5rem', background:'#15803d',
-                    color:'#fff', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:600, fontSize:'0.875rem', textDecoration:'none' }}>
+                <Link to="/login" style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                    background: '#15803d', color: '#fff', padding: '0.75rem 1.5rem',
+                    borderRadius: '0.75rem', fontWeight: 600, fontSize: '0.875rem', textDecoration: 'none',
+                }}>
                     Login Dulu <ExternalLink size={15} />
                 </Link>
             </div>
@@ -225,7 +224,7 @@ const Monitor = () => {
     /* ── Loading ── */
     if (isLoading) {
         return (
-            <div className="mon" style={{ ...BASE.root, ...t.root, alignItems:'center', justifyContent:'center' }}>
+            <div className="mon" style={{ ...BASE.root, ...t.root, alignItems: 'center', justifyContent: 'center' }}>
                 <style>{GLOBAL_STYLES}</style>
                 <RefreshCw size={36} style={{ color: t.liveDot.background, marginBottom: '1rem' }} className="spin" />
                 <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>Memuat data monitor…</p>
@@ -252,19 +251,18 @@ const Monitor = () => {
 
                 {/* ══ HEADER ══════════════════════════════════════════════ */}
                 <header style={{ ...BASE.header, ...t.header }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'clamp(0.75rem,1.5vw,1.25rem)', minWidth:0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem,1.5vw,1.25rem)', minWidth: 0 }}>
                         <div style={{ ...BASE.logo, ...t.logo }}>P</div>
-                        <div style={{ minWidth:0 }}>
+                        <div style={{ minWidth: 0 }}>
                             <div style={{ ...BASE.brandName, ...t.brandName }}>Pekan Banyumasan</div>
-                            {stats?.nama_event  && <div style={{ ...BASE.eventName, ...t.eventName }}>{stats.nama_event}</div>}
-                            {error==='no_event' && <div style={{ ...BASE.eventName, color:'#fbbf24' }}>Tidak ada event aktif</div>}
-                            {error==='network'  && <div style={{ ...BASE.eventName, color:'#f87171' }}>Gagal terhubung ke server</div>}
+                            {stats?.nama_event   && <div style={{ ...BASE.eventName, ...t.eventName }}>{stats.nama_event}</div>}
+                            {error === 'no_event' && <div style={{ ...BASE.eventName, color: '#fbbf24' }}>Tidak ada event aktif</div>}
+                            {error === 'network'  && <div style={{ ...BASE.eventName, color: '#f87171' }}>Gagal terhubung ke server</div>}
                         </div>
                     </div>
 
-                    {/* Theme indicator + clock */}
-                    <div style={{ textAlign:'right', flexShrink:0 }}>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'0.5rem', marginBottom:'0.3rem' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.3rem' }}>
                             <span style={{ ...BASE.themeTag, ...t.themeTag }}>
                                 {themeKey === 'day' ? '☀ Siang' : themeKey === 'dusk' ? '🌇 Sore' : '🌙 Malam'}
                             </span>
@@ -277,7 +275,7 @@ const Monitor = () => {
                 {/* ══ MAIN ════════════════════════════════════════════════ */}
                 <main style={BASE.main}>
 
-                    {/* Hero Card — Pengunjung Di Dalam */}
+                    {/* Hero Card */}
                     <div style={{ ...BASE.heroCard, ...t.heroCard }} className="hero-card">
                         <div style={{ ...BASE.heroGlow, ...t.heroGlow }} className="hero-glow" />
 
@@ -299,14 +297,14 @@ const Monitor = () => {
                         <div style={{ ...BASE.heroDivider, ...t.heroDivider }} />
                     </div>
 
-                    {/* Secondary Cards */}
-                    <div style={BASE.secondaryGrid}>
+                    {/* [FIX 2] secondaryGrid: tambahkan className="mon-sec-grid" agar media query mobile bekerja */}
+                    <div style={BASE.secondaryGrid} className="mon-sec-grid">
                         {secondaryCards.map((card) => {
                             const Icon = card.icon;
                             return (
                                 <div key={card.label} style={{ ...BASE.secCard, ...t.secCard }} className="sec-card">
-                                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-                                        <div style={{ ...BASE.secIconWrap, background: card.accent + '18', border:`1px solid ${card.accent}28` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                        <div style={{ ...BASE.secIconWrap, background: card.accent + '18', border: `1px solid ${card.accent}28` }}>
                                             <Icon size={18} color={card.accent} />
                                         </div>
                                         <div style={{ ...BASE.secAccentBar, background: card.accent + '20', color: card.accent }}>↑</div>
@@ -326,7 +324,7 @@ const Monitor = () => {
 
                 {/* ══ FOOTER ══════════════════════════════════════════════ */}
                 <footer style={{ ...BASE.footer, ...t.footer }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {error === 'network'
                             ? <WifiOff size={13} color="#f87171" />
                             : <Wifi    size={13} color={t.secAccents[0]} />}
@@ -334,18 +332,18 @@ const Monitor = () => {
                             {error === 'network' ? 'Koneksi terputus' : 'Terhubung'}
                         </span>
                         {isRefreshing && (
-                            <RefreshCw size={11} color={t.secAccents[0]} className="spin" style={{ marginLeft:'0.25rem' }} />
+                            <RefreshCw size={11} color={t.secAccents[0]} className="spin" style={{ marginLeft: '0.25rem' }} />
                         )}
                     </div>
 
-                    <div style={{ display:'flex', alignItems:'center', gap:'clamp(0.75rem,2vw,1.5rem)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem,2vw,1.5rem)' }}>
                         <span style={{ ...BASE.footerText, ...t.footerText }}>
                             Diperbarui {fmtLast(lastUpdated)}
-                            <span style={{ margin:'0 0.4rem', opacity:0.4 }}>·</span>
+                            <span style={{ margin: '0 0.4rem', opacity: 0.4 }}>·</span>
                             Refresh dalam <strong style={{ color: t.secAccents[0] }}>{countdown}s</strong>
                         </span>
                         <div style={{ ...BASE.progressBar, ...t.progressBar }}>
-                            <div style={{ ...BASE.progressFill, ...t.progressFill, width:`${(countdown/REFRESH_INTERVAL)*100}%` }} />
+                            <div style={{ ...BASE.progressFill, ...t.progressFill, width: `${(countdown / REFRESH_INTERVAL) * 100}%` }} />
                         </div>
                     </div>
                 </footer>
@@ -354,185 +352,190 @@ const Monitor = () => {
     );
 };
 
-/* ─── Base Styles (geometry, tidak bergantung tema) ────────────────── */
+/* ─── Base Styles ──────────────────────────────────────────────────── */
 const BASE = {
     root: {
-        position:'fixed', inset:0,
-        display:'flex', flexDirection:'column',
-        overflow:'hidden', userSelect:'none', WebkitUserSelect:'none',
-        fontFamily:'Outfit, sans-serif',
-        transition:'background 2s ease',
+        position: 'fixed', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none',
+        fontFamily: 'Outfit, sans-serif',
+        transition: 'background 2s ease',
     },
     bgDot: {
-        position:'absolute', inset:0, pointerEvents:'none',
-        backgroundSize:'52px 52px',
-        transition:'opacity 2s ease',
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundSize: '52px 52px',
+        transition: 'opacity 2s ease',
     },
     bgGlow1: {
-        position:'absolute', top:'-10%', left:'-5%',
-        width:'clamp(300px,50vw,700px)', height:'clamp(200px,35vh,450px)',
-        pointerEvents:'none', borderRadius:'50%',
-        transition:'background 2s ease, opacity 2s ease',
+        position: 'absolute', top: '-10%', left: '-5%',
+        width: 'clamp(300px,50vw,700px)', height: 'clamp(200px,35vh,450px)',
+        pointerEvents: 'none', borderRadius: '50%',
+        transition: 'background 2s ease, opacity 2s ease',
     },
     bgGlow2: {
-        position:'absolute', bottom:'-10%', right:'-5%',
-        width:'clamp(200px,40vw,550px)', height:'clamp(150px,30vh,380px)',
-        pointerEvents:'none', borderRadius:'50%',
-        transition:'background 2s ease, opacity 2s ease',
+        position: 'absolute', bottom: '-10%', right: '-5%',
+        width: 'clamp(200px,40vw,550px)', height: 'clamp(150px,30vh,380px)',
+        pointerEvents: 'none', borderRadius: '50%',
+        transition: 'background 2s ease, opacity 2s ease',
     },
     header: {
-        position:'relative', zIndex:10,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'clamp(0.75rem,2vh,1.25rem) clamp(1rem,3vw,2.5rem)',
-        backdropFilter:'blur(8px)', gap:'1rem',
-        transition:'background 2s ease, border-color 2s ease',
+        position: 'relative', zIndex: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'clamp(0.75rem,2vh,1.25rem) clamp(1rem,3vw,2.5rem)',
+        backdropFilter: 'blur(8px)', gap: '1rem',
+        // borderBottom via t.header.borderBottomColor + inline borderBottomWidth/Style
+        borderBottomWidth: '1px', borderBottomStyle: 'solid',
+        transition: 'background 2s ease, border-color 2s ease',
     },
     logo: {
-        flexShrink:0,
-        width:'clamp(2.25rem,3.5vw,3rem)', height:'clamp(2.25rem,3.5vw,3rem)',
-        borderRadius:'0.625rem',
-        display:'flex', alignItems:'center', justifyContent:'center',
-        color:'#fff',
-        fontFamily:'Bebas Neue, sans-serif',
-        fontSize:'clamp(1rem,2vw,1.5rem)', letterSpacing:'0.05em',
-        transition:'background 2s ease, box-shadow 2s ease',
+        flexShrink: 0,
+        width: 'clamp(2.25rem,3.5vw,3rem)', height: 'clamp(2.25rem,3.5vw,3rem)',
+        borderRadius: '0.625rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff',
+        fontFamily: 'Bebas Neue, sans-serif',
+        fontSize: 'clamp(1rem,2vw,1.5rem)', letterSpacing: '0.05em',
+        transition: 'background 2s ease, box-shadow 2s ease',
     },
     brandName: {
-        fontWeight:700, fontSize:'clamp(0.9rem,1.6vw,1.35rem)',
-        letterSpacing:'0.02em', lineHeight:1.2, whiteSpace:'nowrap',
-        transition:'color 2s ease',
+        fontWeight: 700, fontSize: 'clamp(0.9rem,1.6vw,1.35rem)',
+        letterSpacing: '0.02em', lineHeight: 1.2, whiteSpace: 'nowrap',
+        transition: 'color 2s ease',
     },
     eventName: {
-        fontSize:'clamp(0.65rem,1vw,0.8rem)', fontWeight:500,
-        marginTop:'0.2rem', letterSpacing:'0.04em',
-        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
-        transition:'color 2s ease',
+        fontSize: 'clamp(0.65rem,1vw,0.8rem)', fontWeight: 500,
+        marginTop: '0.2rem', letterSpacing: '0.04em',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        transition: 'color 2s ease',
     },
     themeTag: {
-        fontSize:'clamp(0.55rem,0.75vw,0.68rem)',
-        fontWeight:600, letterSpacing:'0.06em',
-        padding:'0.2rem 0.55rem', borderRadius:'999px',
-        transition:'all 2s ease',
+        fontSize: 'clamp(0.55rem,0.75vw,0.68rem)',
+        fontWeight: 600, letterSpacing: '0.06em',
+        padding: '0.2rem 0.55rem', borderRadius: '999px',
+        transition: 'all 2s ease',
     },
     clockTime: {
-        fontFamily:'Bebas Neue, sans-serif',
-        fontSize:'clamp(2rem,5.5vw,5rem)',
-        letterSpacing:'0.04em', lineHeight:1,
-        transition:'color 2s ease, text-shadow 2s ease',
+        fontFamily: 'Bebas Neue, sans-serif',
+        fontSize: 'clamp(2rem,5.5vw,5rem)',
+        letterSpacing: '0.04em', lineHeight: 1,
+        transition: 'color 2s ease, text-shadow 2s ease',
     },
     clockDate: {
-        fontSize:'clamp(0.6rem,0.9vw,0.8rem)',
-        marginTop:'0.25rem', fontWeight:400, letterSpacing:'0.03em', textAlign:'right',
-        transition:'color 2s ease',
+        fontSize: 'clamp(0.6rem,0.9vw,0.8rem)',
+        marginTop: '0.25rem', fontWeight: 400, letterSpacing: '0.03em', textAlign: 'right',
+        transition: 'color 2s ease',
     },
     main: {
-        position:'relative', zIndex:10, flex:1,
-        display:'flex', flexDirection:'column',
-        gap:'clamp(0.75rem,1.5vh,1.25rem)',
-        padding:'clamp(0.75rem,2vh,1.5rem) clamp(1rem,3vw,2.5rem)',
-        overflow:'hidden',
+        position: 'relative', zIndex: 10, flex: 1,
+        display: 'flex', flexDirection: 'column',
+        gap: 'clamp(0.75rem,1.5vh,1.25rem)',
+        padding: 'clamp(0.75rem,2vh,1.5rem) clamp(1rem,3vw,2.5rem)',
+        overflow: 'hidden',
     },
     heroCard: {
-        position:'relative', flex:'1 1 0', minHeight:0,
-        borderRadius:'clamp(1rem,1.5vw,1.5rem)',
-        display:'flex', flexDirection:'column',
-        alignItems:'center', justifyContent:'center',
-        overflow:'hidden',
-        padding:'clamp(1rem,2vh,2rem) clamp(1rem,2vw,2rem)',
-        transition:'background 2s ease, border-color 2s ease, box-shadow 2s ease',
+        position: 'relative', flex: '1 1 0', minHeight: 0,
+        borderRadius: 'clamp(1rem,1.5vw,1.5rem)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+        padding: 'clamp(1rem,2vh,2rem) clamp(1rem,2vw,2rem)',
+        transition: 'background 2s ease, border-color 2s ease, box-shadow 2s ease',
     },
     heroGlow: {
-        position:'absolute', inset:0, pointerEvents:'none',
-        transition:'background 2s ease',
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        transition: 'background 2s ease',
     },
     liveBadge: {
-        position:'absolute',
-        top:'clamp(0.6rem,1.5vh,1rem)', right:'clamp(0.75rem,1.5vw,1.25rem)',
-        display:'flex', alignItems:'center', gap:'0.375rem',
-        borderRadius:'999px', padding:'0.25rem 0.625rem',
-        transition:'background 2s ease, border-color 2s ease',
+        position: 'absolute',
+        top: 'clamp(0.6rem,1.5vh,1rem)', right: 'clamp(0.75rem,1.5vw,1.25rem)',
+        display: 'flex', alignItems: 'center', gap: '0.375rem',
+        borderRadius: '999px', padding: '0.25rem 0.625rem',
+        transition: 'background 2s ease, border-color 2s ease',
     },
     liveDot: {
-        display:'block',
-        width:'clamp(6px,0.6vw,9px)', height:'clamp(6px,0.6vw,9px)',
-        borderRadius:'50%',
-        transition:'background 2s ease, box-shadow 2s ease',
+        display: 'block',
+        width: 'clamp(6px,0.6vw,9px)', height: 'clamp(6px,0.6vw,9px)',
+        borderRadius: '50%',
+        transition: 'background 2s ease, box-shadow 2s ease',
     },
     liveText: {
-        fontWeight:700, fontSize:'clamp(0.55rem,0.75vw,0.7rem)', letterSpacing:'0.12em',
-        transition:'color 2s ease',
+        fontWeight: 700, fontSize: 'clamp(0.55rem,0.75vw,0.7rem)', letterSpacing: '0.12em',
+        transition: 'color 2s ease',
     },
     heroIconWrap: {
-        width:'clamp(2.5rem,4vw,3.5rem)', height:'clamp(2.5rem,4vw,3.5rem)',
-        borderRadius:'0.875rem',
-        display:'flex', alignItems:'center', justifyContent:'center',
-        marginBottom:'clamp(0.5rem,1.5vh,1rem)',
-        transition:'background 2s ease, border-color 2s ease',
+        width: 'clamp(2.5rem,4vw,3.5rem)', height: 'clamp(2.5rem,4vw,3.5rem)',
+        borderRadius: '0.875rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 'clamp(0.5rem,1.5vh,1rem)',
+        transition: 'background 2s ease, border-color 2s ease',
     },
     heroNumber: {
-        fontFamily:'Bebas Neue, sans-serif',
-        fontSize:'clamp(5rem,18vw,16rem)',
-        lineHeight:0.9, letterSpacing:'0.02em', display:'block',
-        transition:'color 2s ease, text-shadow 2s ease',
+        fontFamily: 'Bebas Neue, sans-serif',
+        fontSize: 'clamp(5rem,18vw,16rem)',
+        lineHeight: 0.9, letterSpacing: '0.02em', display: 'block',
+        transition: 'color 2s ease, text-shadow 2s ease',
     },
     heroLabel: {
-        fontWeight:500, letterSpacing:'0.2em', textTransform:'uppercase',
-        fontSize:'clamp(0.6rem,1.1vw,0.9rem)',
-        marginTop:'clamp(0.25rem,1vh,0.75rem)',
-        transition:'color 2s ease',
+        fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase',
+        fontSize: 'clamp(0.6rem,1.1vw,0.9rem)',
+        marginTop: 'clamp(0.25rem,1vh,0.75rem)',
+        transition: 'color 2s ease',
     },
     heroDivider: {
-        position:'absolute', bottom:0, left:'10%', right:'10%', height:'1px',
-        transition:'background 2s ease',
+        position: 'absolute', bottom: 0, left: '10%', right: '10%', height: '1px',
+        transition: 'background 2s ease',
     },
     secondaryGrid: {
-        display:'grid', gridTemplateColumns:'repeat(3, 1fr)',
-        gap:'clamp(0.5rem,1vw,1rem)', flexShrink:0,
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 'clamp(0.5rem,1vw,1rem)', flexShrink: 0,
     },
     secCard: {
-        borderRadius:'clamp(0.75rem,1.2vw,1.25rem)',
-        padding:'clamp(0.75rem,2vh,1.5rem) clamp(0.75rem,1.5vw,1.5rem)',
-        display:'flex', flexDirection:'column', gap:'clamp(0.3rem,0.8vh,0.6rem)',
-        transition:'background 2s ease, border-color 2s ease, box-shadow 2s ease',
+        borderRadius: 'clamp(0.75rem,1.2vw,1.25rem)',
+        padding: 'clamp(0.75rem,2vh,1.5rem) clamp(0.75rem,1.5vw,1.5rem)',
+        display: 'flex', flexDirection: 'column', gap: 'clamp(0.3rem,0.8vh,0.6rem)',
+        transition: 'background 2s ease, border-color 2s ease, box-shadow 2s ease',
     },
     secIconWrap: {
-        width:'clamp(1.75rem,2.5vw,2.5rem)', height:'clamp(1.75rem,2.5vw,2.5rem)',
-        borderRadius:'0.6rem',
-        display:'flex', alignItems:'center', justifyContent:'center',
+        width: 'clamp(1.75rem,2.5vw,2.5rem)', height: 'clamp(1.75rem,2.5vw,2.5rem)',
+        borderRadius: '0.6rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
     },
     secAccentBar: {
-        fontSize:'clamp(0.6rem,0.85vw,0.75rem)',
-        fontWeight:700, padding:'0.15rem 0.4rem', borderRadius:'0.3rem', letterSpacing:'0.05em',
+        fontSize: 'clamp(0.6rem,0.85vw,0.75rem)',
+        fontWeight: 700, padding: '0.15rem 0.4rem', borderRadius: '0.3rem', letterSpacing: '0.05em',
     },
     secNumber: {
-        fontFamily:'Bebas Neue, sans-serif',
-        fontSize:'clamp(2.5rem,7vw,6.5rem)',
-        lineHeight:1, letterSpacing:'0.02em', display:'block',
-        transition:'color 2s ease',
+        fontFamily: 'Bebas Neue, sans-serif',
+        fontSize: 'clamp(2.5rem,7vw,6.5rem)',
+        lineHeight: 1, letterSpacing: '0.02em', display: 'block',
+        transition: 'color 2s ease',
     },
     secLabel: {
-        fontWeight:500, letterSpacing:'0.1em', textTransform:'uppercase',
-        fontSize:'clamp(0.55rem,0.85vw,0.75rem)', lineHeight:1.3,
-        transition:'color 2s ease',
+        fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase',
+        fontSize: 'clamp(0.55rem,0.85vw,0.75rem)', lineHeight: 1.3,
+        transition: 'color 2s ease',
     },
     footer: {
-        position:'relative', zIndex:10,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'clamp(0.4rem,1vh,0.6rem) clamp(1rem,3vw,2.5rem)', gap:'0.5rem',
-        transition:'background 2s ease, border-color 2s ease',
+        position: 'relative', zIndex: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'clamp(0.4rem,1vh,0.6rem) clamp(1rem,3vw,2.5rem)', gap: '0.5rem',
+        // [FIX 1] borderTop shorthand agar garis separator tampil.
+        // t.footer meng-override dengan warna yang sesuai tema.
+        borderTopWidth: '1px', borderTopStyle: 'solid',
+        transition: 'background 2s ease, border-color 2s ease',
     },
     footerText: {
-        fontSize:'clamp(0.55rem,0.75vw,0.7rem)', fontWeight:400, whiteSpace:'nowrap',
-        transition:'color 2s ease',
+        fontSize: 'clamp(0.55rem,0.75vw,0.7rem)', fontWeight: 400, whiteSpace: 'nowrap',
+        transition: 'color 2s ease',
     },
     progressBar: {
-        width:'clamp(3rem,5vw,6rem)', height:'3px',
-        borderRadius:'999px', overflow:'hidden', flexShrink:0,
-        transition:'background 2s ease',
+        width: 'clamp(3rem,5vw,6rem)', height: '3px',
+        borderRadius: '999px', overflow: 'hidden', flexShrink: 0,
+        transition: 'background 2s ease',
     },
     progressFill: {
-        height:'100%', borderRadius:'999px',
-        transition:'width 1s linear, background 2s ease',
+        height: '100%', borderRadius: '999px',
+        transition: 'width 1s linear, background 2s ease',
     },
 };
 
@@ -557,6 +560,7 @@ const GLOBAL_STYLES = `
     .sec-card:nth-child(2) { animation-delay: .16s; }
     .sec-card:nth-child(3) { animation-delay: .24s; }
 
+    /* [FIX 2] Responsive grid — sekarang .mon-sec-grid di-assign ke elemen JSX */
     @media (max-width: 639px) {
         .mon-sec-grid { grid-template-columns: 1fr 1fr !important; }
     }

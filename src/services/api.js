@@ -60,11 +60,18 @@ api.interceptors.response.use(
                 // sebelum halaman berpindah ke /login.
                 // Guard token: mencegah double-logout dari race condition
                 // (misal fetchStats + fetchActivities gagal bersamaan).
+                //
+                // [FIX] Gunakan '/#/login' bukan '/login' agar kompatibel
+                // dengan HashRouter. window.location.href = '/login' akan
+                // mengarah ke path server yang tidak dikenal oleh Flask
+                // (Flask hanya punya /api/*), sehingga tidak ada redirect
+                // yang tepat. Dengan '/#/login', hash diproses di sisi
+                // browser oleh HashRouter tanpa menyentuh server.
                 setTimeout(() => {
                     if (localStorage.getItem('token')) {
                         localStorage.removeItem('token');
                         localStorage.removeItem('user');
-                        window.location.href = '/login';
+                        window.location.href = '/#/login';
                     }
                 }, 1500);
                 break;

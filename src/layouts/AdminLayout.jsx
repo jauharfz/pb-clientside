@@ -147,10 +147,13 @@ const AdminLayout = () => {
                             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2 px-1">Halaman Publik</div>
                             {externalLinks.map((item) => {
                                 const Icon = item.icon;
+                                // Gunakan <a href> dengan hash URL agar bekerja di semua static host
+                                // tanpa perlu konfigurasi server (HashRouter).
+                                const hashHref = `${window.location.origin}${window.location.pathname}#${item.path}`;
                                 return (
-                                    <Link
+                                    <a
                                         key={item.path}
-                                        to={item.path}
+                                        href={hashHref}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         onClick={() => setIsMobileMenuOpen(false)}
@@ -158,11 +161,11 @@ const AdminLayout = () => {
                                     >
                                         <Icon size={18} />
                                         <span className="flex-1">{item.label}</span>
-                                        {/* Ikon kecil penanda "buka tab baru" */}
+                                        {/* Ikon penanda "buka tab baru" */}
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 opacity-40">
                                             <path fillRule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
                                         </svg>
-                                    </Link>
+                                    </a>
                                 );
                             })}
                         </>

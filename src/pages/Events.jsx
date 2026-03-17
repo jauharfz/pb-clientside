@@ -67,11 +67,17 @@ const EventFormModal = ({ isOpen, isEditMode, initialData, activeEvents, onClose
         setIsSubmitting(true);
         try {
             if (isEditMode) {
-                await api.patch(`/events/${initialData.id}`, {
+                // Hanya sertakan tanggal dalam payload jika benar-benar berubah.
+                // Jika event sedang aktif dan tanggal tidak berubah, backend tidak perlu
+                // tahu tentang tanggal → mencegah false-positive guard 422.
+                const editPayload = {
                     nama_event: formData.nama_event,
                     lokasi:     formData.lokasi,
-                    tanggal:    formData.tanggal,
-                });
+                };
+                if (dateChanged) {
+                    editPayload.tanggal = formData.tanggal;
+                }
+                await api.patch(`/events/${initialData.id}`, editPayload);
                 toast.success('Event berhasil diperbarui!');
             } else {
                 await api.post('/events', formData);

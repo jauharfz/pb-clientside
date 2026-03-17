@@ -64,9 +64,12 @@ const Dashboard = () => {
             const today = new Date().toISOString().split('T')[0];
             const response = await api.get('/visitors', { params: { tanggal: today } });
             const allVisits = response.data.data || [];
-            const sorted = [...allVisits].sort(
-                (a, b) => new Date(b.waktu_masuk) - new Date(a.waktu_masuk)
-            );
+            // Sort by most recent activity: keluar → waktu_keluar, di_dalam → waktu_masuk
+            const actTime = (v) =>
+                v.status === 'keluar' && v.waktu_keluar
+                    ? new Date(v.waktu_keluar)
+                    : new Date(v.waktu_masuk);
+            const sorted = [...allVisits].sort((a, b) => actTime(b) - actTime(a));
             setActivities(sorted.slice(0, 10));
         } catch (error) {
             console.error('Gagal mengambil aktivitas:', error);
@@ -320,7 +323,7 @@ const Dashboard = () => {
                                                 {act.tipe_pengunjung === 'member' ? (
                                                     <>
                                                         <div className="font-semibold text-gray-800">
-                                                            {act.nama_member || 'Member'}
+                                                            {act.member?.nama || act.nama_member || 'Member'}
                                                         </div>
                                                         <div className="text-xs text-gray-400 font-mono">
                                                             ID: {act.member_id?.substring(0, 8)}...

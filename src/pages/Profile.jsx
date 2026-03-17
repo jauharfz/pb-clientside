@@ -5,10 +5,9 @@
 // Dapat diakses tanpa login (PublicRoute).
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
     MapPin, Phone, Mail, Calendar,
-    ChevronDown, ShieldCheck, Star,
+    ChevronDown, Star,
     Wifi, Gift, Store, ArrowRight,
     Clock, Music, Utensils
 } from 'lucide-react';
@@ -82,6 +81,16 @@ const FaqItem = ({ item }) => {
     );
 };
 
+// ── Scroll helper ─────────────────────────────────────────────────────────────
+// href="#section" tidak bisa dipakai dengan HashRouter karena HashRouter
+// menginterpretasikan /#section sebagai route baru → redirect ke Dashboard.
+// Ganti dengan scrollIntoView via JS.
+
+const scrollTo = (id) => (e) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
 // ── Halaman Utama ─────────────────────────────────────────────────────────────
 
 const Profile = () => {
@@ -111,10 +120,10 @@ const Profile = () => {
                             <span className="pf-serif font-bold text-gray-900 text-lg leading-none">Pekan Banyumasan</span>
                         </div>
                         <div className="flex items-center gap-2 md:gap-4">
-                            <a href="#acara"  className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block">Acara</a>
-                            <a href="#member" className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block">Member NFC</a>
-                            <a href="#faq"    className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block">FAQ</a>
-                            <a href="#kontak" className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block">Kontak</a>
+                            <a href="#acara"  onClick={scrollTo('acara')}  className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Acara</a>
+                            <a href="#member" onClick={scrollTo('member')} className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Member NFC</a>
+                            <a href="#faq"    onClick={scrollTo('faq')}    className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">FAQ</a>
+                            <a href="#kontak" onClick={scrollTo('kontak')} className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Kontak</a>
                         </div>
                     </div>
                 </nav>
@@ -145,12 +154,14 @@ const Profile = () => {
                             <div className="flex flex-wrap gap-3">
                                 <a
                                     href="#member"
+                                    onClick={scrollTo('member')}
                                     className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-900 font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-amber-900/20 text-sm"
                                 >
                                     Daftar Member Gratis <ArrowRight size={16} />
                                 </a>
                                 <a
                                     href="#acara"
+                                    onClick={scrollTo('acara')}
                                     className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold px-6 py-3 rounded-xl transition text-sm"
                                 >
                                     Lihat Acara
@@ -239,6 +250,7 @@ const Profile = () => {
                             </ul>
                             <a
                                 href="#cara-daftar"
+                                onClick={scrollTo('cara-daftar')}
                                 className="inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-3 rounded-xl transition shadow-md shadow-green-200 text-sm"
                             >
                                 Cara Mendaftar <ArrowRight size={15} />
@@ -373,18 +385,10 @@ const Profile = () => {
 
                 {/* ── FOOTER ── */}
                 <footer className="bg-gray-900 text-gray-400 py-8">
-                    <div className="max-w-5xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+                    <div className="max-w-5xl mx-auto px-5 flex items-center justify-center text-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-7 h-7 bg-green-700 rounded-md flex items-center justify-center text-white font-bold text-sm">P</div>
                             <span>&copy; 2026 Panitia Pekan Banyumasan. Hak cipta dilindungi.</span>
-                        </div>
-                        <div className="flex items-center gap-5">
-                            <Link to="/monitor" className="hover:text-white transition flex items-center gap-1.5 text-xs">
-                                <Calendar size={13} /> Display Monitor
-                            </Link>
-                            <Link to="/login" className="hover:text-white transition flex items-center gap-1.5 text-xs">
-                                <ShieldCheck size={13} /> Panel Admin
-                            </Link>
                         </div>
                     </div>
                 </footer>
