@@ -1,10 +1,10 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
     Users, LogIn, LogOut, CalendarCheck,
     ArrowDownCircle, ArrowUpCircle, RefreshCw,
-    CreditCard, User, AlertCircle
+    CreditCard, User, AlertCircle, Calendar, ArrowRight
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -24,18 +24,32 @@ const Dashboard = () => {
     // event_id aktif dari response /dashboard/stats.
     // Wajib dikirim ke POST /visitors/manual (OpenAPI ManualVisitorRequest required field).
     const [activeEventId, setActiveEventId] = useState(null);
+    const [namaEvent, setNamaEvent]         = useState(null);
 
-    const [isLoadingStats, setIsLoadingStats] = useState(true);
+    const [isLoadingStats, setIsLoadingStats]           = useState(true);
     const [isLoadingActivities, setIsLoadingActivities] = useState(true);
-    const [submittingAction, setSubmittingAction] = useState(null);
+    const [submittingAction, setSubmittingAction]       = useState(null);
+
+    // Ambil role user untuk menampilkan link "Kelola Event" hanya kepada admin
+    const userRole = (() => {
+        try {
+            const u = localStorage.getItem('user');
+            return u ? JSON.parse(u).role : null;
+        } catch { return null; }
+    })();
 
     const fetchStats = useCallback(async () => {
         try {
             setIsLoadingStats(true);
             const response = await api.get('/dashboard/stats');
-            setStats(response.data.data);
-            if (response.data.data?.event_id) {
-                setActiveEventId(response.data.data.event_id);
+            const data = response.data.data;
+            setStats(data);
+            if (data?.event_id) {
+                setActiveEventId(data.event_id);
+                setNamaEvent(data.nama_event || null);
+            } else {
+                setActiveEventId(null);
+                setNamaEvent(null);
             }
         } catch (error) {
             console.error('Gagal mengambil statistik:', error);
@@ -72,19 +86,13 @@ const Dashboard = () => {
     }, [fetchStats, fetchActivities]);
 
     const handleManualInput = async (aksi) => {
-        /**
-         * Guard event_id null — lapisan kedua setelah tombol disabled.
-         * Tombol sudah di-disable via prop `disabled` saat activeEventId null.
-         */
         if (!activeEventId) {
             toast.warning('Event aktif belum terdeteksi. Tunggu sebentar atau refresh halaman.');
             return;
         }
-
         try {
             setSubmittingAction(aksi);
             await api.post('/visitors/manual', { aksi, event_id: activeEventId });
-            // Umpan balik sukses setelah input manual berhasil
             toast.success(`Pengunjung ${aksi === 'masuk' ? 'masuk' : 'keluar'} berhasil dicatat.`);
             fetchStats();
             fetchActivities();
@@ -109,17 +117,41 @@ const Dashboard = () => {
     return (
         <div className="space-y-8 font-sans">
 
-            {/* Banner peringatan jika event_id belum tersedia setelah stats dimuat */}
+            {/* ── BANNER: tidak ada event aktif ──────────────────────────────── */}
             {!isLoadingStats && !activeEventId && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3">
-                    <AlertCircle size={18} className="text-yellow-600 shrink-0" />
-                    <p className="text-sm text-yellow-800 font-medium">
-                        Tidak ada event aktif terdeteksi. Tombol input manual dinonaktifkan sementara.
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                    <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-amber-800">
+                            Tidak ada event aktif
+                        </p>
+                        <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                            Tombol input manual dinonaktifkan. Tap NFC dari perangkat reader juga tidak akan diterima sistem sampai ada event yang aktif.
+                        </p>
+                    </div>
+                    {/* Hanya tampilkan shortcut ke /events jika role admin */}
+                    {userRole === 'admin' && (
+                        <Link
+                            to="/events"
+                            className="shrink-0 flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap"
+                        >
+                            <Calendar size={13} /> Kelola Event <ArrowRight size={13} />
+                        </Link>
+                    )}
+                </div>
+            )}
+
+            {/* ── BANNER: event aktif (info) ─────────────────────────────────── */}
+            {!isLoadingStats && activeEventId && namaEvent && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0"></span>
+                    <p className="text-sm text-green-800 font-medium">
+                        Event aktif: <span className="font-bold">{namaEvent}</span>
                     </p>
                 </div>
             )}
 
-            {/* 4 STATISTIC CARDS */}
+            {/* ── 4 STATISTIC CARDS ─────────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
                 {/* Card 1: Sedang di Dalam */}
@@ -182,7 +214,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* MAIN ACTION AREA */}
+            {/* ── MAIN ACTION AREA ───────────────────────────────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                 {/* KIRI: Tombol Input Manual */}

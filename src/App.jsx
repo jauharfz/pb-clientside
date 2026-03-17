@@ -7,6 +7,9 @@ import Dashboard from './pages/Dashboard';
 import Members from './pages/Members';
 import Tenants from './pages/Tenants';
 import Reports from './pages/Reports';
+import Events from './pages/Events';
+import Monitor from './pages/Monitor';
+import Profile from './pages/Profile';
 import { ToastProvider } from './components/Toast';
 
 // Helper: ambil data user dari localStorage
@@ -35,6 +38,7 @@ const PrivateRoute = ({ children }) => {
  *   - GET /members, POST /members, PUT /members/:id  → /members
  *   - GET /umkm                                      → /tenants
  *   - GET /reports, GET /reports/export              → /reports
+ *   - GET /events, POST /events, PATCH /events/:id   → /events
  *
  * Jika bukan admin, redirect ke '/' (Dashboard).
  */
@@ -62,6 +66,24 @@ function App() {
         <ToastProvider>
             <Router>
                 <Routes>
+
+                    {/* ── PUBLIC ROUTES — tidak memerlukan login ──────────────── */}
+
+                    {/*
+                     * /profile — Company profile statis (REQ-PROFILE-001).
+                     * Tidak memerlukan autentikasi, dapat diakses siapa saja.
+                     */}
+                    <Route path="/profile" element={<Profile />} />
+
+                    {/*
+                     * /monitor — Display monitor real-time untuk layar besar di venue.
+                     * Tidak memerlukan layout admin. Menggunakan token localStorage
+                     * jika tersedia (buka dari browser dengan sesi admin aktif).
+                     */}
+                    <Route path="/monitor" element={<Monitor />} />
+
+                    {/* ── AUTH ROUTE ─────────────────────────────────────────── */}
+
                     <Route
                         path="/login"
                         element={
@@ -70,6 +92,8 @@ function App() {
                             </PublicOnlyRoute>
                         }
                     />
+
+                    {/* ── PROTECTED ROUTES — menggunakan AdminLayout ──────────── */}
 
                     <Route
                         path="/"
@@ -107,10 +131,23 @@ function App() {
                                 </AdminRoute>
                             }
                         />
+                        {/*
+                         * /events — Manajemen event (Opsi C).
+                         * Admin only: GET /events, POST /events, PATCH /events/:id
+                         */}
+                        <Route
+                            path="events"
+                            element={
+                                <AdminRoute>
+                                    <Events />
+                                </AdminRoute>
+                            }
+                        />
                     </Route>
 
                     {/* Catch-all: redirect path tidak dikenal ke Dashboard */}
                     <Route path="*" element={<Navigate to="/" replace />} />
+
                 </Routes>
             </Router>
         </ToastProvider>

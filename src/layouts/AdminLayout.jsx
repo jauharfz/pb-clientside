@@ -1,7 +1,11 @@
 // src/layouts/AdminLayout.jsx
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { PieChart, Users, Store, FileText, LogOut, User, Menu, X, ShieldCheck, UserCog } from 'lucide-react';
+import {
+    PieChart, Users, Store, FileText, LogOut,
+    User, Menu, X, ShieldCheck, UserCog,
+    Calendar, Monitor, BookOpen
+} from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 const AdminLayout = () => {
@@ -40,9 +44,17 @@ const AdminLayout = () => {
         { path: '/members', label: 'Kelola Member', icon: Users,     roles: ['admin'] },
         { path: '/tenants', label: 'Tenant UMKM',   icon: Store,     roles: ['admin'] },
         { path: '/reports', label: 'Laporan',       icon: FileText,  roles: ['admin'] },
+        // Opsi C: event management — admin only
+        { path: '/events',  label: 'Kelola Event',  icon: Calendar,  roles: ['admin'] },
     ];
 
     const navItems = allNavItems.filter(item => item.roles.includes(userData.role));
+
+    // Link eksternal (buka tab baru, bukan di dalam layout)
+    const externalLinks = [
+        { path: '/monitor', label: 'Display Monitor', icon: Monitor },
+        { path: '/profile', label: 'Company Profile', icon: BookOpen },
+    ];
 
     const getPageInfo = () => {
         switch (location.pathname) {
@@ -50,6 +62,7 @@ const AdminLayout = () => {
             case '/members':  return { title: 'Manajemen Member',     subtitle: 'Registrasi member baru dan kelola data keychain NFC' };
             case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant dan promo diskon' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
+            case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Pekan Banyumasan' };
             default:          return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
         }
     };
@@ -92,6 +105,7 @@ const AdminLayout = () => {
                 transform transition-transform duration-300 ease-in-out
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}>
+                {/* Logo */}
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between md:justify-start gap-3">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
@@ -105,8 +119,9 @@ const AdminLayout = () => {
                     </button>
                 </div>
 
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-2">Menu Utama</div>
+                {/* Nav */}
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-2 px-1">Menu Utama</div>
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
@@ -115,19 +130,46 @@ const AdminLayout = () => {
                                 key={item.path}
                                 to={item.path}
                                 onClick={() => setIsMobileMenuOpen(false)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-sm ${
                                     isActive
                                         ? 'bg-green-50 text-green-800'
                                         : 'text-gray-600 hover:bg-gray-50 hover:text-green-700'
                                 }`}
                             >
-                                <Icon size={20} /> {item.label}
+                                <Icon size={18} /> {item.label}
                             </Link>
                         );
                     })}
+
+                    {/* Divider dan link eksternal (admin only) */}
+                    {userData.role === 'admin' && (
+                        <>
+                            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2 px-1">Halaman Publik</div>
+                            {externalLinks.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className="flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-sm text-gray-500 hover:bg-gray-50 hover:text-green-700"
+                                    >
+                                        <Icon size={18} />
+                                        <span className="flex-1">{item.label}</span>
+                                        {/* Ikon kecil penanda "buka tab baru" */}
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 opacity-40">
+                                            <path fillRule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
+                                        </svg>
+                                    </Link>
+                                );
+                            })}
+                        </>
+                    )}
                 </nav>
 
-                {/* Info Role di Sidebar */}
+                {/* Info Role */}
                 <div className="px-4 py-3 border-t border-gray-100 mx-4 mb-1">
                     <div className={`flex items-center gap-2 text-xs font-semibold ${roleBadgeStyle}`}>
                         <RoleIcon size={14} />
@@ -136,18 +178,20 @@ const AdminLayout = () => {
                     <div className="text-[11px] text-gray-400 mt-0.5 truncate">{userData.email || userData.nama}</div>
                 </div>
 
+                {/* Logout */}
                 <div className="p-4 border-t border-gray-200">
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 text-red-500 hover:bg-red-50 px-4 py-3 rounded-xl font-medium transition"
+                        className="w-full flex items-center gap-3 text-red-500 hover:bg-red-50 px-4 py-3 rounded-xl font-medium transition text-sm"
                     >
-                        <LogOut size={20} /> Logout
+                        <LogOut size={18} /> Logout
                     </button>
                 </div>
             </aside>
 
             {/* MAIN CONTENT */}
             <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+
                 {/* HEADER */}
                 <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-8 shrink-0">
                     <div className="flex items-center gap-4">

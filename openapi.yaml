@@ -9,7 +9,7 @@ info:
     **Supabase (PostgreSQL)** sebagai database cloud.
 
     ## Aktor Sistem
-    - **Admin** – Akses penuh ke semua endpoint (Full Access)
+    - **Admin** – Akses penuh ke semua endpoint termasuk manajemen event (Full Access)
     - **Petugas** – Akses terbatas: input manual pengunjung biasa dan lihat dashboard
     - **NFC Reader** – Hanya dapat mengakses endpoint `POST /api/tap`
 
@@ -25,7 +25,16 @@ info:
     dipetakan ke komponen Flask API manapun, sehingga tidak terdapat endpoint
     terkait dalam spesifikasi ini.
 
-  version: "1.0.0"
+    ## Catatan REQ-EVENT-001
+    Manajemen event (`GET /api/events`, `POST /api/events`, `PATCH /api/events/{id}`,
+    `DELETE /api/events/{id}`) diimplementasikan sebagai fitur admin untuk membuat,
+    mengedit, mengubah status, dan menghapus event. Status event ditentukan otomatis
+    berdasarkan tanggal saat dibuat: hari ini → `aktif`, masa depan → `selesai`
+    (belum mulai). Hanya satu event boleh `aktif` di satu waktu — mengaktifkan satu
+    event otomatis menonaktifkan event lain. Flask API menggunakan tabel EVENT yang
+    sudah ada di Supabase schema — tidak ada perubahan schema database yang diperlukan.
+
+  version: "1.1.0"
   contact:
     name: Tim Pengembang Peken Banyumasan
 
@@ -40,6 +49,8 @@ servers:
 tags:
   - name: Autentikasi
     description: "Login dan manajemen sesi (REQ-AUTH-001, REQ-AUTH-002)"
+  - name: Event
+    description: "Manajemen event Pekan Banyumasan — buat, edit, aktifkan, nonaktifkan, hapus (REQ-EVENT-001)"
   - name: NFC
     description: "Tap masuk/keluar via NFC Reader (REQ-NFC-001, REQ-NFC-002, REQ-NFC-003, REQ-NFC-004)"
   - name: Member
@@ -122,6 +133,330 @@ paths:
                 message: "Field email dan password wajib diisi"
 
   # ─────────────────────────────────────────────────────────────────────────
+  # EVENT (REQ-EVENT-001)
+  # ─────────────────────────────────────────────────────────────────────────
+
+  /events:
+    get:
+      tags:
+        - Event
+      summary: Ambil daftar semua event
+      description: |
+        Mengembalikan seluruh event yang pernah dibuat.
+        Diurutkan: event aktif lebih dulu, kemudian event selesai;
+        dalam tiap grup diurutkan berdasarkan tanggal terbaru.
+
+        **Requirement:** REQ-EVENT-001
+        **Aktor:** Admin
+        **Akses:** Admin only (JWT dengan role `admin`)
+      operationId: getEvents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar event berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+              example:
+                status: "success"
+                data:
+                  - id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
+                    nama_event: "Pekan Banyumasan Juni 2025"
+                    tanggal: "2025-06-01"
+                    lokasi: "Alun-alun Purwokerto"
+                    status: "aktif"
+                    created_at: "2025-05-25T08:00:00+07:00"
+                  - id: "d8e9f0a1-b2c3-4d5e-6f78-901234567890"
+                    nama_event: "Pekan Banyumasan Mei 2025"
+                    tanggal: "2025-05-01"
+                    lokasi: "Alun-alun Purwokerto"
+                    status: "selesai"
+                    created_at: "2025-04-20T08:00:00+07:00"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Event
+      summary: Buat event baru
+      description: |
+        Membuat event baru. Event yang baru dibuat otomatis berstatus **aktif**,
+        sehingga sistem langsung dapat menerima tap NFC dan input manual
+        pengunjung tanpa perlu langkah aktivasi tambahan.
+
+        **Catatan:** Tidak ada batasan teknis jumlah event aktif secara bersamaan,
+        namun disarankan hanya ada satu event aktif agar statistik dashboard
+        tidak bercampur. Admin bertanggung jawab menonaktifkan event lama
+        sebelum membuat event baru jika diperlukan.
+
+        **Requirement:** REQ-EVENT-001
+        **Aktor:** Admin
+        **Akses:** Admin only (JWT dengan role `admin`)
+      operationId: createEvent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              nama_event: "Pekan Banyumasan Juli 2025"
+              tanggal: "2025-07-01"
+              lokasi: "Alun-alun Purwokerto"
+      responses:
+        '201':
+          description: Event baru berhasil dibuat dengan status aktif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Event berhasil dibuat"
+                  data:
+                    $ref: '#/components/schemas/Event'
+              example:
+                status: "success"
+                message: "Event berhasil dibuat"
+                data:
+                  id: "e9f0a1b2-c3d4-5e6f-7890-123456789012"
+                  nama_event: "Pekan Banyumasan Juli 2025"
+                  tanggal: "2025-07-01"
+                  lokasi: "Alun-alun Purwokerto"
+                  status: "aktif"
+                  created_at: "2025-06-25T09:00:00+07:00"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Field wajib tidak diisi atau format tanggal tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: "error"
+                message: "Field nama_event, tanggal (YYYY-MM-DD), dan lokasi wajib diisi"
+
+  /events/{id}:
+    patch:
+      tags:
+        - Event
+      summary: Update event — toggle status atau edit detail
+      description: |
+        Satu endpoint untuk dua operasi, dideteksi dari isi body:
+
+        **Operasi A — Toggle status** (body berisi `status`):
+        - Mengubah ke `selesai`: event tidak lagi menerima tap NFC maupun input manual.
+          Data kunjungan tetap tersimpan.
+        - Mengubah ke `aktif`: event kembali aktif. Hanya boleh jika tanggal event
+          sudah tiba (≤ hari ini). Mengaktifkan satu event otomatis menonaktifkan
+          event lain yang sedang aktif.
+
+        **Operasi B — Edit detail** (body berisi `nama_event`, `lokasi`, dan/atau `tanggal`):
+        - `tanggal` tidak bisa diubah saat event sedang `aktif`.
+        - Jika tanggal diubah ke hari ini → status otomatis `aktif`.
+        - Jika tanggal diubah ke masa depan → status otomatis `selesai` (belum mulai).
+
+        **Requirement:** REQ-EVENT-001
+        **Aktor:** Admin
+        **Akses:** Admin only (JWT dengan role `admin`)
+      operationId: updateEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID event yang akan diubah
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [aktif, selesai]
+                  description: "Operasi A: toggle status"
+                nama_event:
+                  type: string
+                  maxLength: 100
+                  description: "Operasi B: edit nama event"
+                tanggal:
+                  type: string
+                  format: date
+                  description: "Operasi B: edit tanggal (tidak bisa diubah saat aktif)"
+                lokasi:
+                  type: string
+                  maxLength: 200
+                  description: "Operasi B: edit lokasi"
+            examples:
+              toggle_selesai:
+                summary: Nonaktifkan event
+                value:
+                  status: "selesai"
+              toggle_aktif:
+                summary: Aktifkan event
+                value:
+                  status: "aktif"
+              edit_detail:
+                summary: Edit nama dan lokasi
+                value:
+                  nama_event: "Pekan Banyumasan Juli 2025 (Revisi)"
+                  lokasi: "GOR Satria Purwokerto"
+      responses:
+        '200':
+          description: Event berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Status event berhasil diubah menjadi selesai"
+                  data:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          description: Nilai status tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: "error"
+                message: "Nilai status tidak valid. Gunakan 'aktif' atau 'selesai'"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Event tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: "error"
+                message: "Event tidak ditemukan"
+        '422':
+          description: Validasi gagal (mis. aktifkan event masa depan, atau ubah tanggal saat aktif).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                event_masa_depan:
+                  summary: Coba aktifkan event masa depan
+                  value:
+                    status: "error"
+                    message: "Event ini dijadwalkan pada 2025-07-01 dan belum bisa diaktifkan."
+                tanggal_terkunci:
+                  summary: Ubah tanggal saat event aktif
+                  value:
+                    status: "error"
+                    message: "Tanggal tidak dapat diubah saat event sedang aktif."
+
+    delete:
+      tags:
+        - Event
+      summary: Hapus event
+      description: |
+        Menghapus event secara permanen.
+
+        **Batasan:**
+        - Event yang sedang `aktif` tidak dapat dihapus — nonaktifkan terlebih dahulu.
+        - Event yang sudah memiliki data kunjungan tidak dapat dihapus karena
+          ada foreign key constraint `ON DELETE RESTRICT` dari tabel KUNJUNGAN.
+          Nonaktifkan event sebagai gantinya untuk menjaga integritas data historis.
+
+        **Requirement:** REQ-EVENT-001
+        **Aktor:** Admin
+        **Akses:** Admin only (JWT dengan role `admin`)
+      operationId: deleteEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID event yang akan dihapus
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Event berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Event berhasil dihapus"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Event tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: "error"
+                message: "Event tidak ditemukan"
+        '409':
+          description: Event tidak dapat dihapus (sedang aktif atau sudah punya kunjungan).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                event_aktif:
+                  summary: Event sedang aktif
+                  value:
+                    status: "error"
+                    message: "Event yang sedang aktif tidak dapat dihapus. Nonaktifkan terlebih dahulu."
+                ada_kunjungan:
+                  summary: Sudah ada data kunjungan
+                  value:
+                    status: "error"
+                    message: "Event tidak dapat dihapus karena sudah memiliki data kunjungan."
+
+  # ─────────────────────────────────────────────────────────────────────────
   # NFC TAP
   # ─────────────────────────────────────────────────────────────────────────
 
@@ -135,7 +470,7 @@ paths:
         member mendekatkan NFC Tag Keyfob (< 10 cm).
 
         Flask API akan:
-        1. Memvalidasi UID di tabel MEMBER (Supabase)
+        1. Memvalidasi UID di tabel MEMBER (Supabase) via `fn_validate_nfc_uid()`
         2. Menentukan `event_id` secara otomatis dari tabel EVENT berdasarkan event
            yang sedang aktif (`status = 'aktif'`). NFC Reader tidak mengirimkan
            `event_id` karena perangkat keras tidak memiliki konteks event.
@@ -200,14 +535,22 @@ paths:
                       waktu_keluar: "2025-06-01T14:15:00+07:00"
                       status: "keluar"
         '404':
-          description: UID NFC Tag Keyfob tidak terdaftar dalam sistem.
+          description: UID NFC Tag Keyfob tidak terdaftar dalam sistem, atau tidak ada event aktif.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: "error"
-                message: "UID NFC tidak terdaftar dalam sistem"
+              examples:
+                uid_tidak_terdaftar:
+                  summary: UID tidak ditemukan
+                  value:
+                    status: "error"
+                    message: "UID NFC tidak terdaftar dalam sistem"
+                tidak_ada_event:
+                  summary: Tidak ada event aktif
+                  value:
+                    status: "error"
+                    message: "Tidak ada event aktif saat ini"
         '422':
           description: Format UID atau timestamp tidak valid.
           content:
@@ -294,14 +637,6 @@ paths:
                     status: "aktif"
                     tanggal_daftar: "2025-05-10"
                     created_at: "2025-05-10T09:15:00+07:00"
-                  - id: "550e8400-e29b-41d4-a716-446655440003"
-                    nfc_uid: "04:C9:4D:E3:70:9B:A2"
-                    nama: "Dwi Prasetyo"
-                    no_hp: "083344556677"
-                    email: null
-                    status: "nonaktif"
-                    tanggal_daftar: "2025-04-20"
-                    created_at: "2025-04-20T10:30:00+07:00"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -353,20 +688,8 @@ paths:
                     example: "Member berhasil didaftarkan"
                   data:
                     $ref: '#/components/schemas/Member'
-              example:
-                status: "success"
-                message: "Member berhasil didaftarkan"
-                data:
-                  id: "550e8400-e29b-41d4-a716-446655440001"
-                  nfc_uid: "04:A3:2B:C1:5E:7F:80"
-                  nama: "Budi Santoso"
-                  no_hp: "081234567890"
-                  email: "budi@email.com"
-                  status: "aktif"
-                  tanggal_daftar: "2025-06-01"
-                  created_at: "2025-06-01T08:00:00+07:00"
         '400':
-          description: UID NFC sudah terdaftar (duplikat) atau data tidak valid.
+          description: UID NFC sudah terdaftar (duplikat).
           content:
             application/json:
               schema:
@@ -396,7 +719,7 @@ paths:
       description: |
         Memperbarui data member yang sudah terdaftar berdasarkan ID member.
 
-        **Requirement:** REQ-MEMBER-001 (Kelola Data Member)
+        **Requirement:** REQ-MEMBER-001
         **Aktor:** Admin
         **Akses:** Admin only (JWT dengan role `admin`)
       operationId: updateMember
@@ -437,20 +760,8 @@ paths:
                     example: "Data member berhasil diupdate"
                   data:
                     $ref: '#/components/schemas/Member'
-              example:
-                status: "success"
-                message: "Data member berhasil diupdate"
-                data:
-                  id: "550e8400-e29b-41d4-a716-446655440001"
-                  nfc_uid: "04:A3:2B:C1:5E:7F:80"
-                  nama: "Budi Santoso Baru"
-                  no_hp: "089876543210"
-                  email: "budi.baru@email.com"
-                  status: "nonaktif"
-                  tanggal_daftar: "2025-05-01"
-                  created_at: "2025-05-01T08:00:00+07:00"
         '400':
-          description: UID NFC baru sudah digunakan member lain (duplikat).
+          description: UID NFC baru sudah digunakan member lain.
           content:
             application/json:
               schema:
@@ -463,7 +774,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: Member dengan ID tersebut tidak ditemukan.
+          description: Member tidak ditemukan.
           content:
             application/json:
               schema:
@@ -491,8 +802,8 @@ paths:
         - Pengunjung
       summary: Ambil data kunjungan
       description: |
-        Mengembalikan data seluruh kunjungan (baik member maupun pengunjung biasa)
-        dengan opsi filter berdasarkan tanggal atau event.
+        Mengembalikan data seluruh kunjungan (member maupun pengunjung biasa)
+        dengan opsi filter berdasarkan tanggal, event, tipe, atau status.
 
         **Aktor:** Admin
         **Akses:** Admin only (JWT dengan role `admin`)
@@ -544,36 +855,6 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Kunjungan'
-              example:
-                status: "success"
-                data:
-                  - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                    event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                    member_id: "550e8400-e29b-41d4-a716-446655440001"
-                    tipe_pengunjung: "member"
-                    waktu_masuk: "2025-06-01T09:30:00+07:00"
-                    waktu_keluar: "2025-06-01T14:15:00+07:00"
-                    status: "keluar"
-                    dicatat_oleh: "550e8400-e29b-41d4-a716-446655440000"
-                    created_at: "2025-06-01T09:30:00+07:00"
-                  - id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                    event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                    member_id: null
-                    tipe_pengunjung: "biasa"
-                    waktu_masuk: "2025-06-01T10:00:00+07:00"
-                    waktu_keluar: null
-                    status: "di_dalam"
-                    dicatat_oleh: "550e8400-e29b-41d4-a716-446655440000"
-                    created_at: "2025-06-01T10:00:00+07:00"
-                  - id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
-                    event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                    member_id: "550e8400-e29b-41d4-a716-446655440002"
-                    tipe_pengunjung: "member"
-                    waktu_masuk: "2025-06-01T11:00:00+07:00"
-                    waktu_keluar: null
-                    status: "di_dalam"
-                    dicatat_oleh: "550e8400-e29b-41d4-a716-446655440000"
-                    created_at: "2025-06-01T11:00:00+07:00"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -586,16 +867,17 @@ paths:
       summary: Input manual pengunjung biasa masuk atau keluar
       description: |
         Mencatat masuk atau keluar **pengunjung biasa** (tanpa NFC Tag Keyfob)
-        melalui satu tombol klik di Dashboard React.
+        melalui tombol klik di Dashboard React.
 
-        Pada tabel KUNJUNGAN, `member_id` akan bernilai `null` untuk pengunjung biasa,
-        dan `tipe_pengunjung` akan bernilai `biasa`.
+        Logika keluar (FIFO): saat aksi `keluar`, sistem mengambil kunjungan
+        pengunjung biasa yang paling lama berada di dalam (waktu_masuk terlama)
+        untuk di-update waktu_keluar-nya.
 
         **Requirement:** REQ-MANUAL-001 (masuk), REQ-MANUAL-002 (keluar)
         **Aktor:** Admin, Petugas
         **Akses:** Admin dan Petugas (JWT dengan role `admin` atau `petugas`)
         **Acceptance Criteria AC-003:**
-        - Tombol "MASUK - Pengunjung Biasa" diklik → data tersimpan & counter bertambah 1 real-time
+        - Tombol "MASUK" diklik → data tersimpan & counter bertambah 1 real-time
       operationId: recordManualVisitor
       security:
         - BearerAuth: []
@@ -632,24 +914,27 @@ paths:
                     example: "Pengunjung biasa masuk berhasil dicatat"
                   data:
                     $ref: '#/components/schemas/Kunjungan'
+        '404':
+          description: Tidak ada pengunjung biasa yang sedang di dalam (untuk aksi keluar).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
               example:
-                status: "success"
-                message: "Pengunjung biasa masuk berhasil dicatat"
-                data:
-                  id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                  event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                  member_id: null
-                  tipe_pengunjung: "biasa"
-                  waktu_masuk: "2025-06-01T10:00:00+07:00"
-                  waktu_keluar: null
-                  status: "di_dalam"
-                  dicatat_oleh: "550e8400-e29b-41d4-a716-446655440000"
-                  created_at: "2025-06-01T10:00:00+07:00"
+                status: "error"
+                message: "Tidak ada pengunjung biasa yang sedang di dalam"
+        '422':
+          description: Field wajib tidak diisi atau nilai aksi tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: "error"
+                message: "Field aksi dan event_id wajib diisi"
 
   # ─────────────────────────────────────────────────────────────────────────
   # DASHBOARD STATS
-  # [KOREKSI-1] Hak akses diubah dari "Admin dan Petugas" menjadi "Admin only"
-  # sesuai SDD Tabel Endpoint (Seksi 1.2) yang hanya mencantumkan aktor "Admin".
   # ─────────────────────────────────────────────────────────────────────────
 
   /dashboard/stats:
@@ -659,12 +944,15 @@ paths:
       summary: Ambil statistik dashboard real-time
       description: |
         Mengembalikan 4 kartu statistik utama yang ditampilkan di Dashboard React.
-        Data diambil dari view `v_dashboard_stats` di Supabase yang mengagregasi
-        data kunjungan secara real-time.
+        Data diambil dari view `v_dashboard_stats` di Supabase.
+
+        Jika tidak ada event aktif, endpoint tetap mengembalikan HTTP 200 dengan
+        `event_id: null` dan semua counter bernilai 0. Frontend mendeteksi kondisi
+        ini dan menampilkan banner peringatan serta menonaktifkan tombol input manual.
 
         **4 Counter Dashboard:**
-        - `total_masuk` → Total pengunjung yang telah masuk (REQ-DASH-001)
-        - `di_dalam` → Jumlah pengunjung yang sedang berada di dalam area (REQ-DASH-002)
+        - `total_masuk`  → Total pengunjung yang telah masuk (REQ-DASH-001)
+        - `di_dalam`     → Jumlah pengunjung yang sedang di dalam area (REQ-DASH-002)
         - `total_keluar` → Jumlah pengunjung yang telah keluar (REQ-DASH-003)
         - `total_harian` → Total pengunjung dalam satu hari ini (REQ-DASH-004)
 
@@ -678,7 +966,7 @@ paths:
       parameters:
         - name: event_id
           in: query
-          description: UUID event yang sedang berlangsung (jika tidak diisi, menggunakan event aktif)
+          description: UUID event (jika tidak diisi, menggunakan event aktif terbaru)
           required: false
           schema:
             type: string
@@ -692,21 +980,39 @@ paths:
             format: date
       responses:
         '200':
-          description: Statistik dashboard berhasil diambil.
+          description: |
+            Statistik dashboard berhasil diambil.
+            Jika tidak ada event aktif, `event_id` dan `nama_event` bernilai null
+            dan semua counter bernilai 0.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardStatsResponse'
-              example:
-                status: "success"
-                data:
-                  tanggal: "2025-06-01"
-                  event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                  nama_event: "Peken Banyumasan Juni 2025"
-                  total_masuk: 350
-                  di_dalam: 120
-                  total_keluar: 230
-                  total_harian: 350
+              examples:
+                ada_event_aktif:
+                  summary: Ada event aktif
+                  value:
+                    status: "success"
+                    data:
+                      tanggal: "2025-06-01"
+                      event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
+                      nama_event: "Pekan Banyumasan Juni 2025"
+                      total_masuk: 350
+                      di_dalam: 120
+                      total_keluar: 230
+                      total_harian: 350
+                tidak_ada_event:
+                  summary: Tidak ada event aktif
+                  value:
+                    status: "success"
+                    data:
+                      tanggal: "2025-06-01"
+                      event_id: null
+                      nama_event: null
+                      total_masuk: 0
+                      di_dalam: 0
+                      total_keluar: 0
+                      total_harian: 0
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -735,7 +1041,7 @@ paths:
       parameters:
         - name: tanggal
           in: query
-          description: Tanggal laporan yang ingin ditampilkan (format YYYY-MM-DD)
+          description: Tanggal laporan (format YYYY-MM-DD, default hari ini)
           required: false
           schema:
             type: string
@@ -755,38 +1061,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReportResponse'
-              example:
-                status: "success"
-                data:
-                  tanggal: "2025-06-01"
-                  event_id: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
-                  nama_event: "Peken Banyumasan Juni 2025"
-                  ringkasan:
-                    total_kunjungan: 350
-                    total_member: 200
-                    total_biasa: 150
-                  detail:
-                    - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                      tipe_pengunjung: "member"
-                      nama_member: "Budi Santoso"
-                      waktu_masuk: "2025-06-01T09:30:00+07:00"
-                      waktu_keluar: "2025-06-01T14:15:00+07:00"
-                      durasi_menit: 285
-                      status: "keluar"
-                    - id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                      tipe_pengunjung: "biasa"
-                      nama_member: null
-                      waktu_masuk: "2025-06-01T10:00:00+07:00"
-                      waktu_keluar: "2025-06-01T12:30:00+07:00"
-                      durasi_menit: 150
-                      status: "keluar"
-                    - id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
-                      tipe_pengunjung: "member"
-                      nama_member: "Siti Rahayu"
-                      waktu_masuk: "2025-06-01T11:00:00+07:00"
-                      waktu_keluar: null
-                      durasi_menit: null
-                      status: "di_dalam"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -798,8 +1072,8 @@ paths:
         - Laporan
       summary: Ekspor laporan kunjungan ke PDF atau Excel
       description: |
-        Mengunduh file laporan kunjungan dalam format PDF atau Excel
-        berdasarkan tanggal yang dipilih.
+        Mengunduh file laporan kunjungan dalam format PDF (fpdf2) atau
+        Excel (openpyxl) berdasarkan tanggal yang dipilih.
 
         **Requirement:** REQ-REPORT-002
         **Aktor:** Admin
@@ -835,9 +1109,7 @@ paths:
         '200':
           description: |
             File laporan berhasil dibuat dan siap diunduh.
-            Content-Type tergantung format yang dipilih:
-            - `pdf` → `application/pdf`
-            - `excel` → `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+            Content-Type tergantung format yang dipilih.
           content:
             application/pdf:
               schema:
@@ -869,9 +1141,6 @@ paths:
 
   # ─────────────────────────────────────────────────────────────────────────
   # DISKON UMKM
-  # [KOREKSI-2a] Tag dan deskripsi diperbarui: endpoint ini hanya memetakan
-  # REQ-MEMBER-002. REQ-INTEG-001 dipindahkan ke endpoint GET /umkm tersendiri
-  # sesuai SDD RTM (Seksi 6).
   # ─────────────────────────────────────────────────────────────────────────
 
   /discounts:
@@ -880,21 +1149,20 @@ paths:
         - Diskon UMKM
       summary: Ambil data diskon dan benefit member dari tenant UMKM
       description: |
-        Mengembalikan daftar diskon/benefit yang berlaku dari tenant UMKM
-        untuk ditampilkan kepada member aktif.
-
-        Data berasal dari tabel `DISKON_MEMBER` yang berelasi dengan `TENANT_UMKM`.
+        Mengembalikan daftar diskon/benefit yang berlaku dari tenant UMKM.
+        Data berasal dari tabel `DISKON_MEMBER` yang berelasi dengan `TENANT_UMKM`
+        (join via PostgREST nested select).
 
         **Requirement:** REQ-MEMBER-002
-        **Aktor:** Admin, Member
-        **Akses:** Admin dan pengguna terautentikasi (JWT)
+        **Aktor:** Admin, Petugas
+        **Akses:** Admin dan Petugas (JWT)
       operationId: getDiscounts
       security:
         - BearerAuth: []
       parameters:
         - name: is_aktif
           in: query
-          description: Filter hanya diskon yang sedang aktif
+          description: Filter hanya diskon yang sedang aktif (default true)
           required: false
           schema:
             type: boolean
@@ -921,53 +1189,11 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/DiskonMember'
-              example:
-                status: "success"
-                data:
-                  - id: "d1e2f3a4-b5c6-7d8e-9f0a-b1c2d3e4f5a6"
-                    tenant:
-                      id: "e2f3a4b5-c6d7-8e9f-0a1b-c2d3e4f5a6b7"
-                      nama_tenant: "Warung Soto Sokaraja Pak Joko"
-                      kategori: "makanan"
-                      nomor_stand: "A-05"
-                      deskripsi: "Soto Sokaraja khas Banyumas dengan bumbu kacang"
-                    deskripsi_diskon: "Diskon 15% untuk semua menu bagi member aktif"
-                    persentase_diskon: 15.00
-                    berlaku_mulai: "2025-06-01"
-                    berlaku_hingga: "2025-06-30"
-                    is_aktif: true
-                  - id: "e2f3a4b5-c6d7-8e9f-0a1b-c2d3e4f5a6b8"
-                    tenant:
-                      id: "f3a4b5c6-d7e8-9f0a-1b2c-d3e4f5a6b7c8"
-                      nama_tenant: "Batik Banyumas Bu Endang"
-                      kategori: "fashion"
-                      nomor_stand: "B-12"
-                      deskripsi: "Batik tulis dan cap khas Banyumas motif jahe srimpang"
-                    deskripsi_diskon: "Diskon 10% untuk pembelian batik di atas Rp 150.000"
-                    persentase_diskon: 10.00
-                    berlaku_mulai: "2025-06-01"
-                    berlaku_hingga: "2025-06-30"
-                    is_aktif: true
-                  - id: "f3a4b5c6-d7e8-9f0a-1b2c-d3e4f5a6b7c9"
-                    tenant:
-                      id: "a4b5c6d7-e8f9-0a1b-2c3d-e4f5a6b7c8d9"
-                      nama_tenant: "Keripik Tempe Mendoan Pak Tono"
-                      kategori: "makanan"
-                      nomor_stand: "A-09"
-                      deskripsi: "Keripik tempe mendoan dan mendoan basah khas Purwokerto"
-                    deskripsi_diskon: "Gratis 1 bungkus keripik tempe setiap pembelian min. 3 bungkus"
-                    persentase_diskon: 0.00
-                    berlaku_mulai: "2025-06-01"
-                    berlaku_hingga: "2025-06-30"
-                    is_aktif: true
         '401':
           $ref: '#/components/responses/Unauthorized'
 
   # ─────────────────────────────────────────────────────────────────────────
   # INTEGRASI UMKM (EXTERNAL)
-  # [KOREKSI-2b] Endpoint baru GET /umkm ditambahkan sesuai SDD RTM (Seksi 6)
-  # yang secara eksplisit mendefinisikan "GET /api/umkm (external)" sebagai
-  # komponen Flask API untuk REQ-INTEG-001.
   # ─────────────────────────────────────────────────────────────────────────
 
   /umkm:
@@ -976,13 +1202,13 @@ paths:
         - Integrasi UMKM
       summary: Ambil data tenant UMKM dari API eksternal kelompok UMKM
       description: |
-        Endpoint integrasi Flask API dengan **API eksternal kelompok UMKM**.
-        Flask API bertindak sebagai proxy — mengambil data tenant dan diskon
-        dari sistem eksternal kelompok UMKM, lalu meneruskannya ke frontend React.
+        Flask API bertindak sebagai proxy ke API eksternal kelompok UMKM.
+        URL dan API key dikonfigurasi via environment variable:
+        - `UMKM_API_URL` → endpoint API eksternal
+        - `UMKM_API_KEY` → bearer token API eksternal (jika ada)
 
-        Berbeda dengan `GET /discounts` yang membaca data internal tabel `DISKON_MEMBER`
-        di Supabase (REQ-MEMBER-002), endpoint ini secara spesifik memenuhi kebutuhan
-        **integrasi** dengan sistem pihak ketiga (REQ-INTEG-001).
+        Jika `UMKM_API_URL` belum dikonfigurasi, endpoint mengembalikan
+        array kosong dengan keterangan `_info` tanpa error.
 
         **Requirement:** REQ-INTEG-001
         **Aktor:** Admin
@@ -1034,24 +1260,6 @@ paths:
                     nomor_stand: "A-05"
                     deskripsi: "Soto Sokaraja khas Banyumas dengan bumbu kacang"
                     created_at: "2025-05-01T08:00:00+07:00"
-                  - id: "f3a4b5c6-d7e8-9f0a-1b2c-d3e4f5a6b7c8"
-                    nama_tenant: "Batik Banyumas Bu Endang"
-                    kategori: "fashion"
-                    nomor_stand: "B-12"
-                    deskripsi: "Batik tulis dan cap khas Banyumas motif jahe srimpang"
-                    created_at: "2025-05-01T08:30:00+07:00"
-                  - id: "a4b5c6d7-e8f9-0a1b-2c3d-e4f5a6b7c8d9"
-                    nama_tenant: "Keripik Tempe Mendoan Pak Tono"
-                    kategori: "makanan"
-                    nomor_stand: "A-09"
-                    deskripsi: "Keripik tempe mendoan dan mendoan basah khas Purwokerto"
-                    created_at: "2025-05-02T09:00:00+07:00"
-                  - id: "b5c6d7e8-f9a0-1b2c-3d4e-f5a6b7c8d9e0"
-                    nama_tenant: "Wedang Uwuh Bu Lastri"
-                    kategori: "minuman"
-                    nomor_stand: "C-03"
-                    deskripsi: "Minuman herbal tradisional wedang uwuh dan jahe merah"
-                    created_at: "2025-05-02T10:00:00+07:00"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1082,29 +1290,21 @@ components:
         Dikelola oleh Supabase Authentication.
         Format: `Authorization: Bearer <token>`
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # SCHEMAS
-  # ─────────────────────────────────────────────────────────────────────────
-
   schemas:
 
     # ── AUTH ──────────────────────────────────────────────────────────────
 
     LoginRequest:
       type: object
-      required:
-        - email
-        - password
+      required: [email, password]
       properties:
         email:
           type: string
           format: email
-          description: Email pengguna (Admin atau Petugas) — unik di tabel ADMIN
           example: "admin@pekenbanyumasan.id"
         password:
           type: string
           format: password
-          description: Password akun Supabase Auth
           example: "password_rahasia"
 
     LoginResponse:
@@ -1121,7 +1321,6 @@ components:
           properties:
             token:
               type: string
-              description: JWT Token untuk digunakan pada header Authorization
               example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             user:
               $ref: '#/components/schemas/AdminUser'
@@ -1133,38 +1332,83 @@ components:
         id:
           type: string
           format: uuid
-          description: Primary Key ADMIN (auto-generated UUID)
         nama:
           type: string
-          description: Nama lengkap admin/petugas
           maxLength: 100
           example: "Ahmad Al-Farizi"
         email:
           type: string
           format: email
-          description: Email untuk login (unique)
           maxLength: 100
           example: "admin@pekenbanyumasan.id"
         role:
           type: string
           enum: [admin, petugas]
-          description: "Peran pengguna: admin (Full Access) atau petugas (Limited Access) — REQ-AUTH-002"
+          description: "admin: Full Access | petugas: Limited Access (REQ-AUTH-002)"
           example: "admin"
+
+    # ── EVENT ─────────────────────────────────────────────────────────────
+
+    Event:
+      type: object
+      description: Data event Pekan Banyumasan (tabel EVENT di Supabase)
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Primary Key (auto-generated UUID)
+        nama_event:
+          type: string
+          maxLength: 100
+          example: "Pekan Banyumasan Juni 2025"
+        tanggal:
+          type: string
+          format: date
+          example: "2025-06-01"
+        lokasi:
+          type: string
+          maxLength: 200
+          example: "Alun-alun Purwokerto"
+        status:
+          type: string
+          enum: [aktif, selesai]
+          description: |
+            - `aktif`: menerima tap NFC dan input manual
+            - `selesai`: tidak menerima kunjungan baru, data tetap tersimpan
+          example: "aktif"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-05-25T08:00:00+07:00"
+
+    CreateEventRequest:
+      type: object
+      required: [nama_event, tanggal, lokasi]
+      properties:
+        nama_event:
+          type: string
+          maxLength: 100
+          example: "Pekan Banyumasan Juli 2025"
+        tanggal:
+          type: string
+          format: date
+          description: Format YYYY-MM-DD
+          example: "2025-07-01"
+        lokasi:
+          type: string
+          maxLength: 200
+          example: "Alun-alun Purwokerto"
 
     # ── NFC TAP ───────────────────────────────────────────────────────────
 
     TapRequest:
       type: object
-      required:
-        - uid
-        - timestamp
+      required: [uid, timestamp]
       properties:
         uid:
           type: string
-          description: |
-            UID unik dari NFC Tag Keyfob 13.56 MHz yang dibaca NFC Reader.
-            UID tertanam permanen pada chip dan tidak dapat diubah atau digandakan.
           maxLength: 50
+          description: UID unik dari NFC Tag Keyfob 13.56 MHz
           example: "04:A3:2B:C1:5E:7F:80"
         timestamp:
           type: string
@@ -1187,155 +1431,120 @@ components:
             kunjungan_id:
               type: string
               format: uuid
-              description: ID kunjungan yang baru dibuat di tabel KUNJUNGAN
             event_id:
               type: string
               format: uuid
-              description: |
-                ID event aktif yang diresolvasi otomatis oleh Flask API dari tabel EVENT
-                (event dengan `status = 'aktif'`). Disertakan dalam response sebagai
-                konfirmasi event yang sedang berlangsung saat tap terjadi.
             member_id:
               type: string
               format: uuid
-              description: ID member dari tabel MEMBER
             nama_member:
               type: string
-              description: Nama lengkap member
             aksi:
               type: string
               enum: [masuk, keluar]
-              description: Jenis aksi tap yang berhasil dicatat
             waktu_masuk:
               type: string
               format: date-time
-              description: Waktu tap masuk (KUNJUNGAN.waktu_masuk)
             waktu_keluar:
               type: string
               format: date-time
               nullable: true
-              description: Waktu tap keluar (KUNJUNGAN.waktu_keluar), null jika baru masuk
             status:
               type: string
               enum: [di_dalam, keluar]
-              description: Status kunjungan setelah tap (KUNJUNGAN.status)
 
     # ── MEMBER ────────────────────────────────────────────────────────────
 
     Member:
       type: object
-      description: Data member beserta UID NFC Tag Keyfob (tabel MEMBER di Supabase)
+      description: Data member beserta UID NFC Tag Keyfob (tabel MEMBER)
       properties:
         id:
           type: string
           format: uuid
-          description: Primary Key (auto-generated UUID)
         nfc_uid:
           type: string
-          description: UID unik dari chip NFC Tag Keyfob (unique, max 50 karakter)
           maxLength: 50
           example: "04:A3:2B:C1:5E:7F:80"
         nama:
           type: string
-          description: Nama lengkap member (max 100 karakter)
           maxLength: 100
           example: "Budi Santoso"
         no_hp:
           type: string
-          description: Nomor handphone member (max 20 karakter)
           maxLength: 20
           example: "081234567890"
         email:
           type: string
           format: email
-          description: Email member (opsional, max 100 karakter)
           maxLength: 100
           nullable: true
           example: "budi@email.com"
         status:
           type: string
           enum: [aktif, nonaktif]
-          description: Status keanggotaan member
           example: "aktif"
         tanggal_daftar:
           type: string
           format: date
-          description: Tanggal pendaftaran member
           example: "2025-05-01"
         created_at:
           type: string
           format: date-time
-          description: Waktu data dibuat (auto-generated)
           example: "2025-05-01T08:00:00+07:00"
 
     CreateMemberRequest:
       type: object
-      required:
-        - nfc_uid
-        - nama
-        - no_hp
-        - status
-        - tanggal_daftar
+      required: [nfc_uid, nama, no_hp, status, tanggal_daftar]
       properties:
         nfc_uid:
           type: string
-          description: UID NFC Tag Keyfob yang diberikan kepada member (harus unik)
           maxLength: 50
           example: "04:A3:2B:C1:5E:7F:80"
         nama:
           type: string
-          description: Nama lengkap member
           maxLength: 100
           example: "Budi Santoso"
         no_hp:
           type: string
-          description: Nomor handphone member
           maxLength: 20
           example: "081234567890"
         email:
           type: string
           format: email
-          description: Email member (opsional)
           maxLength: 100
           nullable: true
           example: "budi@email.com"
         status:
           type: string
           enum: [aktif, nonaktif]
-          description: Status keanggotaan awal
           example: "aktif"
         tanggal_daftar:
           type: string
           format: date
-          description: Tanggal pendaftaran member
           example: "2025-06-01"
 
     UpdateMemberRequest:
       type: object
-      description: Semua field bersifat opsional — hanya field yang disertakan yang akan diupdate
+      description: Semua field opsional — hanya field yang disertakan yang diupdate
       properties:
         nfc_uid:
           type: string
-          description: UID NFC Tag Keyfob baru (harus unik jika diubah)
           maxLength: 50
         nama:
           type: string
-          description: Nama lengkap member
           maxLength: 100
         no_hp:
           type: string
-          description: Nomor handphone member
           maxLength: 20
         email:
           type: string
           format: email
-          description: Email member (opsional)
           maxLength: 100
           nullable: true
         status:
           type: string
           enum: [aktif, nonaktif]
-          description: Status keanggotaan
 
     # ── KUNJUNGAN ─────────────────────────────────────────────────────────
 
@@ -1346,61 +1555,51 @@ components:
         id:
           type: string
           format: uuid
-          description: Primary Key (auto-generated UUID)
         event_id:
           type: string
           format: uuid
-          description: Foreign Key → tabel EVENT
         member_id:
           type: string
           format: uuid
           nullable: true
-          description: Foreign Key → tabel MEMBER. NULL untuk pengunjung biasa.
+          description: NULL untuk pengunjung biasa
         tipe_pengunjung:
           type: string
           enum: [member, biasa]
-          description: Jenis pengunjung
           example: "biasa"
         waktu_masuk:
           type: string
           format: date-time
-          description: Waktu tap masuk atau input manual masuk
           example: "2025-06-01T10:00:00+07:00"
         waktu_keluar:
           type: string
           format: date-time
           nullable: true
-          description: Waktu tap keluar (NULL jika pengunjung masih di dalam)
           example: null
         status:
           type: string
           enum: [di_dalam, keluar]
-          description: Status keberadaan pengunjung saat ini
           example: "di_dalam"
         dicatat_oleh:
           type: string
           format: uuid
-          description: Foreign Key → tabel ADMIN (petugas yang menginput)
         created_at:
           type: string
           format: date-time
-          description: Waktu record dibuat (auto-generated)
 
     ManualVisitorRequest:
       type: object
-      required:
-        - aksi
-        - event_id
+      required: [aksi, event_id]
       properties:
         aksi:
           type: string
           enum: [masuk, keluar]
-          description: Aksi yang dilakukan — masuk (REQ-MANUAL-001) atau keluar (REQ-MANUAL-002)
+          description: "masuk: REQ-MANUAL-001 | keluar: REQ-MANUAL-002"
           example: "masuk"
         event_id:
           type: string
           format: uuid
-          description: ID event yang sedang berlangsung (Foreign Key → tabel EVENT)
+          description: ID event yang sedang berlangsung
           example: "c7d8e9f0-a1b2-3c4d-5e6f-789012345678"
 
     # ── DASHBOARD STATS ───────────────────────────────────────────────────
@@ -1418,31 +1617,31 @@ components:
             tanggal:
               type: string
               format: date
-              description: Tanggal statistik
               example: "2025-06-01"
             event_id:
               type: string
               format: uuid
-              description: ID event yang sedang dipantau
+              nullable: true
+              description: null jika tidak ada event aktif
             nama_event:
               type: string
-              description: Nama event yang sedang berlangsung
-              example: "Peken Banyumasan Juni 2025"
+              nullable: true
+              example: "Pekan Banyumasan Juni 2025"
             total_masuk:
               type: integer
-              description: "Total pengunjung yang telah masuk hari ini (REQ-DASH-001)"
+              description: REQ-DASH-001
               example: 350
             di_dalam:
               type: integer
-              description: "Jumlah pengunjung yang sedang berada di dalam area event (REQ-DASH-002)"
+              description: REQ-DASH-002
               example: 120
             total_keluar:
               type: integer
-              description: "Jumlah pengunjung yang telah keluar (REQ-DASH-003)"
+              description: REQ-DASH-003
               example: 230
             total_harian:
               type: integer
-              description: "Total pengunjung dalam satu hari ini (REQ-DASH-004)"
+              description: REQ-DASH-004
               example: 350
 
     # ── LAPORAN ───────────────────────────────────────────────────────────
@@ -1464,9 +1663,11 @@ components:
             event_id:
               type: string
               format: uuid
+              nullable: true
             nama_event:
               type: string
-              example: "Peken Banyumasan Juni 2025"
+              nullable: true
+              example: "Pekan Banyumasan Juni 2025"
             ringkasan:
               type: object
               properties:
@@ -1493,7 +1694,6 @@ components:
                   nama_member:
                     type: string
                     nullable: true
-                    description: Nama member, null untuk pengunjung biasa
                   waktu_masuk:
                     type: string
                     format: date-time
@@ -1504,7 +1704,6 @@ components:
                   durasi_menit:
                     type: integer
                     nullable: true
-                    description: Durasi kunjungan dalam menit (null jika masih di dalam)
                   status:
                     type: string
                     enum: [di_dalam, keluar]
@@ -1513,35 +1712,29 @@ components:
 
     TenantUmkm:
       type: object
-      description: Data tenant UMKM yang berpartisipasi di event (tabel TENANT_UMKM)
+      description: Data tenant UMKM (tabel TENANT_UMKM atau API eksternal)
       properties:
         id:
           type: string
           format: uuid
-          description: Primary Key
         nama_tenant:
           type: string
-          description: Nama UMKM/tenant (max 100 karakter)
           maxLength: 100
           example: "Warung Soto Sokaraja Pak Joko"
         kategori:
           type: string
-          description: Kategori produk (max 50 karakter)
           maxLength: 50
           example: "makanan"
         nomor_stand:
           type: string
-          description: Nomor stand di area event (max 10 karakter)
           maxLength: 10
           example: "A-05"
         deskripsi:
           type: string
-          description: Deskripsi singkat tenant
           example: "Soto Sokaraja khas Banyumas dengan bumbu kacang"
         created_at:
           type: string
           format: date-time
-          description: Waktu data dibuat
 
     DiskonMember:
       type: object
@@ -1550,33 +1743,28 @@ components:
         id:
           type: string
           format: uuid
-          description: Primary Key
         tenant:
           $ref: '#/components/schemas/TenantUmkm'
         deskripsi_diskon:
           type: string
-          description: Deskripsi benefit/diskon untuk member
           example: "Diskon 15% untuk semua menu bagi member aktif"
         persentase_diskon:
           type: number
           format: decimal
-          description: Persentase diskon (DECIMAL 5,2 — contoh 15.00 = 15%)
           minimum: 0
           maximum: 100
           example: 15.00
+          description: 0.00 berarti diskon non-persentase (misal gratis item)
         berlaku_mulai:
           type: string
           format: date
-          description: Tanggal mulai berlaku diskon
           example: "2025-06-01"
         berlaku_hingga:
           type: string
           format: date
-          description: Tanggal berakhir diskon
           example: "2025-06-30"
         is_aktif:
           type: boolean
-          description: Status aktif diskon
           example: true
 
     # ── ERROR ─────────────────────────────────────────────────────────────
@@ -1589,12 +1777,7 @@ components:
           example: "error"
         message:
           type: string
-          description: Pesan error yang informatif
           example: "Terjadi kesalahan pada server"
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # RESPONSES (REUSABLE)
-  # ─────────────────────────────────────────────────────────────────────────
 
   responses:
     Unauthorized:
@@ -1609,7 +1792,7 @@ components:
 
     Forbidden:
       description: |
-        Akses ditolak. Pengguna tidak memiliki hak akses yang diperlukan
+        Akses ditolak. Pengguna tidak memiliki role yang diperlukan
         untuk endpoint ini (REQ-AUTH-002 — Role-Based Access Control).
       content:
         application/json:
