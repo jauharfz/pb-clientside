@@ -29,6 +29,8 @@ const Dashboard = () => {
     const [isLoadingStats, setIsLoadingStats]           = useState(true);
     const [isLoadingActivities, setIsLoadingActivities] = useState(true);
     const [submittingAction, setSubmittingAction]       = useState(null);
+    // Increment on every background refresh to trigger re-mount of animated elements
+    const [flashKey, setFlashKey]                       = useState(0);
 
     // Ambil role user untuk menampilkan link "Kelola Event" hanya kepada admin
     const userRole = (() => {
@@ -38,31 +40,44 @@ const Dashboard = () => {
         } catch { return null; }
     })();
 
-    const fetchStats = useCallback(async () => {
+    const fetchStats = useCallback(async (silent = false) => {
         try {
-            setIsLoadingStats(true);
+            if (!silent) setIsLoadingStats(true);
             const response = await api.get('/dashboard/stats');
             const data = response.data.data;
             setStats(data);
             if (data?.event_id) {
                 setActiveEventId(data.event_id);
                 setNamaEvent(data.nama_event || null);
+                // Sync event info to AdminLayout via localStorage + CustomEvent
+                // (storage event only fires cross-tab; CustomEvent works same-window)
+                localStorage.setItem('pekan_active_event', JSON.stringify({ id: data.event_id, nama: data.nama_event || null }));
             } else {
                 setActiveEventId(null);
                 setNamaEvent(null);
+                localStorage.removeItem('pekan_active_event');
             }
+            window.dispatchEvent(new CustomEvent('pekan_event_update'));
+            // Trigger flash animation on background refresh (not initial load)
+            if (silent) setFlashKey(k => k + 1);
         } catch (error) {
             console.error('Gagal mengambil statistik:', error);
         } finally {
-            setIsLoadingStats(false);
+            if (!silent) setIsLoadingStats(false);
         }
     }, []);
 
-    const fetchActivities = useCallback(async () => {
+    const fetchActivities = useCallback(async (silent = false) => {
         try {
-            setIsLoadingActivities(true);
-            const today = new Date().toISOString().split('T')[0];
-            const response = await api.get('/visitors', { params: { tanggal: today } });
+            if (!silent) setIsLoadingActivities(true);
+            // Gunakan local date bukan UTC agar sesuai dengan timezone WIB pengguna
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            // Filter by event_id jika tersedia agar tidak mencampur data lintas event
+            // pada hari yang sama. Jika belum ada event aktif, tetap fetch by tanggal.
+            const params = { tanggal: today };
+            if (activeEventId) params.event_id = activeEventId;
+            const response = await api.get('/visitors', { params });
             const allVisits = response.data.data || [];
             // Sort by most recent activity: keluar → waktu_keluar, di_dalam → waktu_masuk
             const actTime = (v) =>
@@ -74,16 +89,17 @@ const Dashboard = () => {
         } catch (error) {
             console.error('Gagal mengambil aktivitas:', error);
         } finally {
-            setIsLoadingActivities(false);
+            if (!silent) setIsLoadingActivities(false);
         }
-    }, []);
+    }, [activeEventId]);
 
     useEffect(() => {
         fetchStats();
         fetchActivities();
+
         const interval = setInterval(() => {
-            fetchStats();
-            fetchActivities();
+            fetchStats(true);
+            fetchActivities(true);
         }, 10000);
         return () => clearInterval(interval);
     }, [fetchStats, fetchActivities]);
@@ -114,11 +130,26 @@ const Dashboard = () => {
         return new Date(act.waktu_masuk);
     };
 
-    // Tombol MASUK/KELUAR di-disable selama: ada aksi berjalan ATAU event_id belum tersedia
+// Tombol MASUK/KELUAR di-disable selama: ada aksi berjalan ATAU event_id belum tersedia
     const isManualButtonDisabled = submittingAction !== null || !activeEventId;
 
     return (
         <div className="space-y-8 font-sans">
+            {/* Keyframes untuk flash animation saat background refresh */}
+            <style>{`
+            @keyframes value-flash {
+                0%   { background-color: transparent; }
+                25%  { background-color: #dcfce7; }
+                100% { background-color: transparent; }
+            }
+            @keyframes row-flash {
+                0%   { background-color: transparent; }
+                25%  { background-color: #f0fdf4; }
+                100% { background-color: transparent; }
+            }
+            .value-flash { animation: value-flash 0.75s ease-out; }
+            .row-flash   { animation: row-flash   0.75s ease-out; }
+        `}</style>
 
             {/* ── BANNER: tidak ada event aktif ──────────────────────────────── */}
             {!isLoadingStats && !activeEventId && (
@@ -144,16 +175,6 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* ── BANNER: event aktif (info) ─────────────────────────────────── */}
-            {!isLoadingStats && activeEventId && namaEvent && (
-                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0"></span>
-                    <p className="text-sm text-green-800 font-medium">
-                        Event aktif: <span className="font-bold">{namaEvent}</span>
-                    </p>
-                </div>
-            )}
-
             {/* ── 4 STATISTIC CARDS ─────────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
@@ -167,7 +188,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="text-4xl font-bold text-gray-800 mb-1">
-                        {isLoadingStats ? '...' : stats.di_dalam}
+                        {isLoadingStats ? '...' : <span key={`di_dalam-${flashKey}`} className="value-flash inline-block">{stats.di_dalam}</span>}
                     </div>
                     <div className="text-xs text-green-700 font-medium flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Update
@@ -183,7 +204,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="text-3xl font-bold text-gray-800 mb-1">
-                        {isLoadingStats ? '...' : stats.total_masuk}
+                        {isLoadingStats ? '...' : <span key={`total_masuk-${flashKey}`} className="value-flash inline-block">{stats.total_masuk}</span>}
                     </div>
                     <div className="text-xs text-gray-400">Pengunjung hari ini</div>
                 </div>
@@ -197,7 +218,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="text-3xl font-bold text-gray-800 mb-1">
-                        {isLoadingStats ? '...' : stats.total_keluar}
+                        {isLoadingStats ? '...' : <span key={`total_keluar-${flashKey}`} className="value-flash inline-block">{stats.total_keluar}</span>}
                     </div>
                     <div className="text-xs text-gray-400">Pengunjung hari ini</div>
                 </div>
@@ -211,7 +232,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="text-3xl font-bold text-gray-800 mb-1">
-                        {isLoadingStats ? '...' : stats.total_harian}
+                        {isLoadingStats ? '...' : <span key={`total_harian-${flashKey}`} className="value-flash inline-block">{stats.total_harian}</span>}
                     </div>
                     <div className="text-xs text-gray-400">Sejak awal hari ini</div>
                 </div>
@@ -302,7 +323,7 @@ const Dashboard = () => {
                                     </tr>
                                 ) : (
                                     activities.map((act) => (
-                                        <tr key={act.id} className="hover:bg-gray-50 transition">
+                                        <tr key={`${act.id}-${flashKey}`} className="hover:bg-gray-50 transition row-flash">
                                             <td className="px-6 py-4 text-gray-500 font-medium">
                                                 {getActivityTime(act).toLocaleTimeString('id-ID', {
                                                     hour: '2-digit', minute: '2-digit', second: '2-digit'

@@ -17,6 +17,25 @@ const AdminLayout = () => {
     // OpenAPI AdminUser schema: { id, nama, email, role: 'admin' | 'petugas' }
     const [userData, setUserData] = useState({ nama: 'Admin', role: 'admin' });
 
+    // Badge event aktif — disync dari Dashboard via localStorage + CustomEvent
+    const [activeEventBadge, setActiveEventBadge] = useState(() => {
+        try {
+            const stored = localStorage.getItem('pekan_active_event');
+            return stored ? JSON.parse(stored) : null;
+        } catch { return null; }
+    });
+
+    useEffect(() => {
+        const handler = () => {
+            try {
+                const stored = localStorage.getItem('pekan_active_event');
+                setActiveEventBadge(stored ? JSON.parse(stored) : null);
+            } catch { setActiveEventBadge(null); }
+        };
+        window.addEventListener('pekan_event_update', handler);
+        return () => window.removeEventListener('pekan_event_update', handler);
+    }, []);
+
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -205,7 +224,16 @@ const AdminLayout = () => {
                             <Menu size={24} />
                         </button>
                         <div>
-                            <h1 className="text-xl md:text-2xl font-bold text-gray-800">{pageInfo.title}</h1>
+                            <div className="flex items-center gap-2.5">
+                                <h1 className="text-xl md:text-2xl font-bold text-gray-800">{pageInfo.title}</h1>
+                                {/* Badge event aktif — hanya tampil di Dashboard saat ada event */}
+                                {location.pathname === '/' && activeEventBadge?.nama && (
+                                    <span className="hidden sm:inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></span>
+                                        {activeEventBadge.nama}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs md:text-sm text-gray-500 hidden sm:block">{pageInfo.subtitle}</p>
                         </div>
                     </div>

@@ -11,7 +11,16 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 // ── Helper tanggal ────────────────────────────────────────────────────────────
 
-const getTodayStr = () => new Date().toISOString().split('T')[0];
+// Gunakan local date (bukan UTC) agar cocok dengan nilai dari HTML date input
+// dan timezone pengguna WIB (UTC+7).
+// new Date().toISOString() selalu UTC — menyebabkan mismatch antara 00:00–06:59 WIB.
+const getTodayStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
 
 /**
  * Klasifikasi visual event.
@@ -347,12 +356,15 @@ const Events = () => {
         if (action === 'toggle') {
             const toActive     = event.status !== 'aktif';
             const hasOtherActive = toActive && events.some(e => e.status === 'aktif' && e.id !== event.id);
+            const isPastDate   = toActive && event.tanggal < getTodayStr();
             return {
                 title:        toActive ? 'Aktifkan Event' : 'Nonaktifkan Event',
                 message:      toActive
-                    ? hasOtherActive
-                        ? `Mengaktifkan event ini akan otomatis menonaktifkan event lain yang sedang aktif. Lanjutkan?`
-                        : `Event "${event.nama_event}" akan diaktifkan dan langsung menerima tap NFC serta input manual. Lanjutkan?`
+                    ? isPastDate
+                        ? `Tanggal event ini (${event.tanggal}) sudah lewat. Sistem tetap bisa menerima tap NFC dan input manual setelah diaktifkan.${hasOtherActive ? ' Event lain yang sedang aktif akan otomatis dinonaktifkan.' : ''} Tetap aktifkan?`
+                        : hasOtherActive
+                            ? `Mengaktifkan event ini akan otomatis menonaktifkan event lain yang sedang aktif. Lanjutkan?`
+                            : `Event "${event.nama_event}" akan diaktifkan dan langsung menerima tap NFC serta input manual. Lanjutkan?`
                     : `Event "${event.nama_event}" akan dinonaktifkan. Data kunjungan tetap tersimpan. Lanjutkan?`,
                 confirmLabel: toActive ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan',
                 variant:      toActive ? 'warning' : 'danger',

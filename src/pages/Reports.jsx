@@ -4,43 +4,65 @@ import {
     ChevronDown, FileSpreadsheet, FileText,
     ArrowRight, ArrowLeft, IdCard, User,
     Download, AlertTriangle, X, Loader2,
-    Users, TrendingUp, UserCheck
+    Users, TrendingUp, UserCheck, Info
 } from 'lucide-react';
 import api from '../services/api';
 
 const ITEMS_PER_PAGE = 15;
 
+// Gunakan local date bukan UTC agar sesuai dengan timezone WIB
+const getLocalDateStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
 const Reports = () => {
     const [reportData, setReportData] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading]   = useState(true);
 
-    const [selectedDate, setSelectedDate] = useState(
-        new Date().toISOString().split('T')[0]
-    );
-    const [filterType, setFilterType] = useState('Semua Tipe Pengunjung');
+    const [selectedDate, setSelectedDate] = useState(getLocalDateStr());
+    const [filterType, setFilterType]     = useState('Semua Tipe Pengunjung');
+    // [NEW] Filter per event — null = semua event di tanggal tersebut
+    const [selectedEventId, setSelectedEventId] = useState('');
+    // [NEW] Daftar event unik dari data yang dimuat (untuk dropdown)
+    const [availableEvents, setAvailableEvents]   = useState([]);
 
-    // [FIX] Tambah state pagination yang sebelumnya tidak ada sama sekali
     const [currentPage, setCurrentPage] = useState(1);
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen]   = useState(false);
     const [exportFormat, setExportFormat] = useState('');
-    const [isExporting, setIsExporting] = useState(false);
+    const [isExporting, setIsExporting]   = useState(false);
 
     const fetchReports = useCallback(async () => {
         try {
             setIsLoading(true);
-            const response = await api.get('/reports', {
-                params: { tanggal: selectedDate },
-            });
-            setReportData(response.data.data || null);
-            setCurrentPage(1); // Reset ke halaman 1 setiap data baru dimuat
+            const params = { tanggal: selectedDate };
+            // Kirim event_id ke backend jika dipilih
+            if (selectedEventId) params.event_id = selectedEventId;
+
+            const response = await api.get('/reports', { params });
+            const data = response.data.data || null;
+            setReportData(data);
+            setCurrentPage(1);
+
+            // [NEW] Kumpulkan event unik dari detail untuk dropdown filter
+            // Berguna ketika satu tanggal memiliki lebih dari satu event
+            if (data?.detail?.length > 0 && !selectedEventId) {
+                const seen = new Map();
+                data.detail.forEach(row => {
+                    if (row.event_id && row.nama_event && !seen.has(row.event_id)) {
+                        seen.set(row.event_id, row.nama_event);
+                    }
+                });
+                setAvailableEvents([...seen.entries()].map(([id, nama]) => ({ id, nama })));
+            }
         } catch (error) {
             console.error('Gagal mengambil data laporan:', error);
             setReportData(null);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedDate]);
+    }, [selectedDate, selectedEventId]);
 
     useEffect(() => {
         fetchReports();
@@ -60,8 +82,11 @@ const Reports = () => {
         setIsExporting(true);
         try {
             const formatParam = exportFormat.toLowerCase() === 'excel' ? 'excel' : 'pdf';
+            const exportParams = { format: formatParam, tanggal: selectedDate };
+            if (selectedEventId) exportParams.event_id = selectedEventId;
+
             const response = await api.get('/reports/export', {
-                params: { format: formatParam, tanggal: selectedDate },
+                params: exportParams,
                 responseType: 'blob',
             });
 
@@ -166,9 +191,35 @@ const Reports = () => {
                         <input
                             type="date"
                             value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedDate(e.target.value);
+                                // Reset event filter saat tanggal berubah karena
+                                // daftar event yang tersedia mungkin berbeda
+                                setSelectedEventId('');
+                                setAvailableEvents([]);
+                            }}
                             className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm"
                         />
+
+                        {/* Filter per event — hanya muncul jika ada >1 event di tanggal ini */}
+                        {availableEvents.length > 1 && (
+                            <div className="relative">
+                                <select
+                                    value={selectedEventId}
+                                    onChange={(e) => setSelectedEventId(e.target.value)}
+                                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
+                                >
+                                    <option value="">Semua Event</option>
+                                    {availableEvents.map(ev => (
+                                        <option key={ev.id} value={ev.id}>{ev.nama}</option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                    <ChevronDown size={16} />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="relative">
                             <select
                                 value={filterType}
@@ -209,42 +260,51 @@ const Reports = () => {
                             <th className="px-6 py-4 font-semibold">Waktu Masuk</th>
                             <th className="px-6 py-4 font-semibold">Tipe</th>
                             <th className="px-6 py-4 font-semibold">Identitas</th>
-                            <th className="px-6 py-4 font-semibold">Status / Aktivitas</th>
-                            <th className="px-6 py-4 font-semibold">Dicatat Oleh</th>
+                            <th className="px-6 py-4 font-semibold">Waktu Keluar</th>
+                            <th className="px-6 py-4 font-semibold">Durasi</th>
+                            <th className="px-6 py-4 font-semibold">Status</th>
                         </tr>
                         </thead>
                         <tbody className="text-sm divide-y divide-gray-50">
                         {isLoading ? (
                             <tr>
-                                <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                                     <Loader2 size={24} className="animate-spin mx-auto mb-2 text-green-600" />
                                     Memuat data laporan...
                                 </td>
                             </tr>
                         ) : pagedReports.length === 0 ? (
                             <tr>
-                                <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                                     Tidak ada data untuk tanggal dan filter yang dipilih.
                                 </td>
                             </tr>
                         ) : (
                             pagedReports.map((row) => {
+                                const isMember = row.tipe_pengunjung === 'member';
+
                                 const waktuMasuk = row.waktu_masuk ? new Date(row.waktu_masuk) : null;
-                                const tanggalStr = waktuMasuk
-                                    ? waktuMasuk.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                                const waktuKeluar = row.waktu_keluar ? new Date(row.waktu_keluar) : null;
+
+                                const fmtTanggal = (d) => d
+                                    ? d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : '-';
-                                const timeStr = waktuMasuk
-                                    ? waktuMasuk.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                const fmtJam = (d) => d
+                                    ? d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
                                     : '-';
 
                                 return (
                                     <tr key={row.id} className="hover:bg-gray-50 transition">
+
+                                        {/* Waktu Masuk — akurat untuk semua tipe */}
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-gray-700">{tanggalStr}</div>
-                                            <div className="text-xs text-gray-500">{timeStr} WIB</div>
+                                            <div className="font-medium text-gray-700">{fmtTanggal(waktuMasuk)}</div>
+                                            <div className="text-xs text-gray-500">{fmtJam(waktuMasuk)} WIB</div>
                                         </td>
+
+                                        {/* Tipe */}
                                         <td className="px-6 py-4">
-                                            {row.tipe_pengunjung === 'member' ? (
+                                            {isMember ? (
                                                 <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-800 px-2.5 py-1 rounded-md text-xs font-semibold border border-green-100">
                                                     <IdCard size={14} /> Member
                                                 </span>
@@ -254,39 +314,78 @@ const Reports = () => {
                                                 </span>
                                             )}
                                         </td>
+
+                                        {/* Identitas */}
                                         <td className="px-6 py-4">
-                                            {row.tipe_pengunjung === 'member' ? (
+                                            {isMember ? (
                                                 <>
                                                     <div className="font-semibold text-gray-800">{row.nama_member || '-'}</div>
                                                     <div className="text-xs text-gray-400 font-mono">
-                                                        Kunjungan #{row.id?.substring(0, 8)}
+                                                        #{row.id?.substring(0, 8)}
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="font-semibold text-gray-400 italic">Pengunjung Biasa</div>
+                                                <div className="font-medium text-gray-400 italic">Pengunjung Biasa</div>
                                             )}
                                         </td>
+
+                                        {/* Waktu Keluar
+                                            Member   → akurat (tap NFC)
+                                            Non-member → FIFO, tidak merepresentasikan individu
+                                                         tampilkan dash + tooltip penjelasan */}
+                                        <td className="px-6 py-4">
+                                            {isMember ? (
+                                                waktuKeluar ? (
+                                                    <>
+                                                        <div className="font-medium text-gray-700">{fmtTanggal(waktuKeluar)}</div>
+                                                        <div className="text-xs text-gray-500">{fmtJam(waktuKeluar)} WIB</div>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400">—</span>
+                                                )
+                                            ) : (
+                                                <span
+                                                    className="inline-flex items-center gap-1 text-xs text-gray-400 cursor-default"
+                                                    title="Pengunjung biasa tidak dilacak per individu. Waktu keluar tidak dapat dipasangkan secara akurat."
+                                                >
+                                                    — <Info size={12} className="opacity-60" />
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        {/* Durasi
+                                            Member   → akurat
+                                            Non-member → tidak bermakna (FIFO pairing) */}
+                                        <td className="px-6 py-4">
+                                            {isMember && row.durasi_menit != null ? (
+                                                <span className="text-sm text-gray-700 font-medium">
+                                                    {row.durasi_menit} mnt
+                                                </span>
+                                            ) : isMember && row.status === 'di_dalam' ? (
+                                                <span className="text-xs text-gray-400">Masih di dalam</span>
+                                            ) : (
+                                                <span
+                                                    className="inline-flex items-center gap-1 text-xs text-gray-400 cursor-default"
+                                                    title="Durasi tidak dihitung untuk pengunjung biasa."
+                                                >
+                                                    — <Info size={12} className="opacity-60" />
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        {/* Status */}
                                         <td className="px-6 py-4">
                                             {row.status === 'di_dalam' ? (
-                                                <span className="text-green-600 font-bold flex items-center gap-2">
-                                                    <ArrowRight size={16} /> Sedang di Dalam
+                                                <span className="text-green-600 font-bold flex items-center gap-1.5 text-sm">
+                                                    <ArrowRight size={14} /> Di Dalam
                                                 </span>
                                             ) : (
-                                                <div>
-                                                    <span className="text-red-500 font-bold flex items-center gap-2">
-                                                        <ArrowLeft size={16} /> Sudah Keluar
-                                                    </span>
-                                                    {row.durasi_menit != null && (
-                                                        <div className="text-xs text-gray-400 mt-0.5">
-                                                            Durasi: {row.durasi_menit} menit
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <span className="text-gray-500 font-bold flex items-center gap-1.5 text-sm">
+                                                    <ArrowLeft size={14} /> Keluar
+                                                </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-gray-500">
-                                            {row.tipe_pengunjung === 'member' ? 'Sistem (NFC)' : 'Admin / Petugas'}
-                                        </td>
+
                                     </tr>
                                 );
                             })
