@@ -33,8 +33,11 @@ const Reports = () => {
     const [filterType, setFilterType]           = useState('Semua Tipe Pengunjung');
 
     // ── Report data ───────────────────────────────────────────────────────
-    const [reportData, setReportData] = useState(null);
-    const [isLoading, setIsLoading]   = useState(false);
+    const [reportData, setReportData]           = useState(null);
+    const [isLoading, setIsLoading]             = useState(false);
+    // tanggal_range HANYA diperbarui saat fetch full-event (tanpa selectedDate).
+    // Ini mencegah pills hilang saat user drill-down ke hari tertentu.
+    const [eventTanggalRange, setEventTanggalRange] = useState([]);
 
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -67,7 +70,6 @@ const Reports = () => {
     // ── Fetch laporan setiap kali filter berubah ──────────────────────────
     const fetchReports = useCallback(async () => {
         if (!selectedEventId && !selectedDate) {
-            // Belum ada filter sama sekali — jangan fetch
             setReportData(null);
             return;
         }
@@ -76,12 +78,19 @@ const Reports = () => {
             const params = {};
             if (selectedEventId) params.event_id = selectedEventId;
             if (selectedDate)    params.tanggal   = selectedDate;
-            // Jika tidak ada event_id sama sekali, fallback ke hari ini
             if (!selectedEventId && !selectedDate) params.tanggal = getLocalDateStr();
 
             const response = await api.get('/reports', { params });
-            setReportData(response.data.data || null);
+            const data = response.data.data || null;
+            setReportData(data);
             setCurrentPage(1);
+
+            // Hanya update eventTanggalRange saat fetch full-event (tanpa drill-down tanggal).
+            // Saat drill-down ke hari tertentu, tanggal_range dari response hanya berisi
+            // 1 entry → jangan overwrite, biarkan pills tetap tampil dari state lama.
+            if (!selectedDate && data?.tanggal_range) {
+                setEventTanggalRange(data.tanggal_range);
+            }
         } catch (error) {
             console.error('Gagal mengambil data laporan:', error);
             setReportData(null);
@@ -94,9 +103,10 @@ const Reports = () => {
         fetchReports();
     }, [fetchReports]);
 
-    // Reset date drill-down dan page saat event berubah
+    // Reset date drill-down, tanggal_range, dan page saat event berubah
     useEffect(() => {
         setSelectedDate('');
+        setEventTanggalRange([]);
         setCurrentPage(1);
     }, [selectedEventId]);
 
@@ -275,8 +285,8 @@ const Reports = () => {
                         </div>
                     </div>
 
-                    {/* Baris 2: Date pills — hanya tampil jika ada tanggal_range dari response */}
-                    {reportData?.tanggal_range?.length > 1 && (
+                    {/* Baris 2: Date pills — hanya tampil jika event punya lebih dari 1 hari */}
+                    {eventTanggalRange.length > 1 && (
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs text-gray-400 font-medium shrink-0">Filter hari:</span>
                             <button
@@ -287,9 +297,9 @@ const Reports = () => {
                                         : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
                                 }`}
                             >
-                                Semua Hari ({reportData.tanggal_range.length})
+                                Semua Hari ({eventTanggalRange.length})
                             </button>
-                            {reportData.tanggal_range.map(tgl => (
+                            {eventTanggalRange.map(tgl => (
                                 <button
                                     key={tgl}
                                     onClick={() => setSelectedDate(tgl === selectedDate ? '' : tgl)}
@@ -346,7 +356,7 @@ const Reports = () => {
                                 const waktuMasuk = row.waktu_masuk ? new Date(row.waktu_masuk) : null;
                                 const waktuKeluar = row.waktu_keluar ? new Date(row.waktu_keluar) : null;
 
-                                const fmtTanggal = (d) => d
+                                const fmtDate = (d) => d
                                     ? d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
                                     : '-';
                                 const fmtJam = (d) => d
@@ -358,7 +368,7 @@ const Reports = () => {
 
                                         {/* Waktu Masuk — akurat untuk semua tipe */}
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-gray-700">{fmtTanggal(waktuMasuk)}</div>
+                                            <div className="font-medium text-gray-700">{fmtDate(waktuMasuk)}</div>
                                             <div className="text-xs text-gray-500">{fmtJam(waktuMasuk)} WIB</div>
                                         </td>
 
@@ -397,7 +407,7 @@ const Reports = () => {
                                             {isMember ? (
                                                 waktuKeluar ? (
                                                     <>
-                                                        <div className="font-medium text-gray-700">{fmtTanggal(waktuKeluar)}</div>
+                                                        <div className="font-medium text-gray-700">{fmtDate(waktuKeluar)}</div>
                                                         <div className="text-xs text-gray-500">{fmtJam(waktuKeluar)} WIB</div>
                                                     </>
                                                 ) : (
@@ -472,10 +482,10 @@ const Reports = () => {
                                 — <strong className="text-gray-600">{reportData.nama_event}</strong>
                                 {selectedDate
                                     ? ` · ${fmtTanggal(selectedDate)}`
-                                    : reportData.tanggal_range?.length > 1
-                                        ? ` · ${reportData.tanggal_range.length} hari`
-                                        : reportData.tanggal_range?.length === 1
-                                            ? ` · ${fmtTanggal(reportData.tanggal_range[0])}`
+                                    : eventTanggalRange.length > 1
+                                        ? ` · ${eventTanggalRange.length} hari`
+                                        : eventTanggalRange.length === 1
+                                            ? ` · ${fmtTanggal(eventTanggalRange[0])}`
                                             : ''
                                 }
                             </span>
@@ -591,8 +601,8 @@ const Reports = () => {
                                     <span className="font-bold text-gray-800">
                                         {selectedDate
                                             ? fmtTanggal(selectedDate)
-                                            : reportData?.tanggal_range?.length > 1
-                                                ? `Seluruh Event (${reportData.tanggal_range.length} hari)`
+                                            : eventTanggalRange.length > 1
+                                                ? `Seluruh Event (${eventTanggalRange.length} hari)`
                                                 : 'Seluruh Event'
                                         }
                                     </span>
