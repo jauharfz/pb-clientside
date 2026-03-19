@@ -171,7 +171,7 @@ const EventFormModal = ({ isOpen, isEditMode, initialData, activeEvents, onClose
                             <div className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500 flex items-center gap-2 cursor-not-allowed">
                                 <Lock size={14} className="text-gray-400 shrink-0"/>
                                 <span>
-                                    {new Date(initialData.tanggal).toLocaleDateString('id-ID', {
+                                    {new Date(initialData.tanggal + 'T00:00:00').toLocaleDateString('id-ID', {
                                         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                                     })}
                                 </span>
@@ -379,7 +379,7 @@ const Events = () => {
     };
 
     const formatTanggal = (d) =>
-        new Date(d).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     const today         = getTodayStr();
     const activeEvents  = events.filter(e => e.status === 'aktif');

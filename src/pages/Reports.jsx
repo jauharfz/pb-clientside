@@ -10,22 +10,31 @@ import api from '../services/api';
 
 const ITEMS_PER_PAGE = 15;
 
-// Gunakan local date bukan UTC agar sesuai dengan timezone WIB
 const getLocalDateStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
 
-const Reports = () => {
-    const [reportData, setReportData] = useState(null);
-    const [isLoading, setIsLoading]   = useState(true);
+// Format tanggal YYYY-MM-DD → "Sen, 1 Jan 2025"
+const fmtTanggal = (s) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+});
 
-    const [selectedDate, setSelectedDate] = useState(getLocalDateStr());
-    const [filterType, setFilterType]     = useState('Semua Tipe Pengunjung');
-    // [NEW] Filter per event — null = semua event di tanggal tersebut
+const Reports = () => {
+    // ── Events list (untuk primary selector) ─────────────────────────────
+    const [events, setEvents]             = useState([]);
+    const [isLoadingEvents, setLoadingEv] = useState(true);
+
+    // ── Filter state ──────────────────────────────────────────────────────
+    // selectedEventId kosong = belum pilih event (tampilkan placeholder)
     const [selectedEventId, setSelectedEventId] = useState('');
-    // [NEW] Daftar event unik dari data yang dimuat (untuk dropdown)
-    const [availableEvents, setAvailableEvents]   = useState([]);
+    // selectedDate kosong = semua hari event; isi = drill-down ke hari itu
+    const [selectedDate, setSelectedDate]       = useState('');
+    const [filterType, setFilterType]           = useState('Semua Tipe Pengunjung');
+
+    // ── Report data ───────────────────────────────────────────────────────
+    const [reportData, setReportData] = useState(null);
+    const [isLoading, setIsLoading]   = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -33,45 +42,65 @@ const Reports = () => {
     const [exportFormat, setExportFormat] = useState('');
     const [isExporting, setIsExporting]   = useState(false);
 
+    // ── Load daftar event saat mount ──────────────────────────────────────
+    useEffect(() => {
+        (async () => {
+            try {
+                const res  = await api.get('/events');
+                const raw  = res.data.data || [];
+                // Urutkan: terbaru dulu berdasarkan tanggal
+                const sorted = [...raw].sort((a, b) =>
+                    new Date(b.tanggal) - new Date(a.tanggal)
+                );
+                setEvents(sorted);
+                // Auto-pilih event aktif jika ada
+                const aktif = sorted.find(e => e.status === 'aktif');
+                if (aktif) setSelectedEventId(aktif.id);
+            } catch {
+                // gagal load events — biarkan user pilih manual
+            } finally {
+                setLoadingEv(false);
+            }
+        })();
+    }, []);
+
+    // ── Fetch laporan setiap kali filter berubah ──────────────────────────
     const fetchReports = useCallback(async () => {
+        if (!selectedEventId && !selectedDate) {
+            // Belum ada filter sama sekali — jangan fetch
+            setReportData(null);
+            return;
+        }
         try {
             setIsLoading(true);
-            const params = { tanggal: selectedDate };
-            // Kirim event_id ke backend jika dipilih
+            const params = {};
             if (selectedEventId) params.event_id = selectedEventId;
+            if (selectedDate)    params.tanggal   = selectedDate;
+            // Jika tidak ada event_id sama sekali, fallback ke hari ini
+            if (!selectedEventId && !selectedDate) params.tanggal = getLocalDateStr();
 
             const response = await api.get('/reports', { params });
-            const data = response.data.data || null;
-            setReportData(data);
+            setReportData(response.data.data || null);
             setCurrentPage(1);
-
-            // [NEW] Kumpulkan event unik dari detail untuk dropdown filter
-            // Berguna ketika satu tanggal memiliki lebih dari satu event
-            if (data?.detail?.length > 0 && !selectedEventId) {
-                const seen = new Map();
-                data.detail.forEach(row => {
-                    if (row.event_id && row.nama_event && !seen.has(row.event_id)) {
-                        seen.set(row.event_id, row.nama_event);
-                    }
-                });
-                setAvailableEvents([...seen.entries()].map(([id, nama]) => ({ id, nama })));
-            }
         } catch (error) {
             console.error('Gagal mengambil data laporan:', error);
             setReportData(null);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedDate, selectedEventId]);
+    }, [selectedEventId, selectedDate]);
 
     useEffect(() => {
         fetchReports();
     }, [fetchReports]);
 
-    // Reset ke halaman 1 setiap kali filter tipe berubah
+    // Reset date drill-down dan page saat event berubah
     useEffect(() => {
+        setSelectedDate('');
         setCurrentPage(1);
-    }, [filterType]);
+    }, [selectedEventId]);
+
+    useEffect(() => { setCurrentPage(1); }, [filterType]);
 
     const handleOpenExportModal = (format) => {
         setExportFormat(format);
@@ -82,8 +111,9 @@ const Reports = () => {
         setIsExporting(true);
         try {
             const formatParam = exportFormat.toLowerCase() === 'excel' ? 'excel' : 'pdf';
-            const exportParams = { format: formatParam, tanggal: selectedDate };
+            const exportParams = { format: formatParam };
             if (selectedEventId) exportParams.event_id = selectedEventId;
+            if (selectedDate)    exportParams.tanggal  = selectedDate;
 
             const response = await api.get('/reports/export', {
                 params: exportParams,
@@ -91,23 +121,18 @@ const Reports = () => {
             });
 
             const ext = formatParam === 'excel' ? 'xlsx' : 'pdf';
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const safeName = (reportData?.nama_event || 'laporan').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+            const suffix   = selectedDate || safeName;
+            const url  = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `laporan_kunjungan_${selectedDate}.${ext}`);
+            link.setAttribute('download', `laporan_kunjungan_${suffix}.${ext}`);
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.URL.revokeObjectURL(url);
-
             setIsModalOpen(false);
         } catch (error) {
-            /**
-             * [FIX] Sebelumnya: alert(`Gagal mengunduh file ${exportFormat}`)
-             * Ketika export gagal dengan responseType: 'blob', error.response.data
-             * adalah Blob bukan JSON. Interceptor di api.js sudah meng-parse Blob
-             * dan menaruh hasilnya di error.message, jadi bisa langsung dipakai.
-             */
             alert(`Gagal mengunduh file ${exportFormat}: ${error.message || 'Silakan coba lagi.'}`);
             console.error(error);
         } finally {
@@ -186,70 +211,99 @@ const Reports = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-1">
 
                 {/* TOOLBAR */}
-                <div className="p-6 border-b border-gray-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-gray-50/30 shrink-0">
-                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => {
-                                setSelectedDate(e.target.value);
-                                // Reset event filter saat tanggal berubah karena
-                                // daftar event yang tersedia mungkin berbeda
-                                setSelectedEventId('');
-                                setAvailableEvents([]);
-                            }}
-                            className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm"
-                        />
+                <div className="p-6 border-b border-gray-100 flex flex-col gap-4 bg-gray-50/30 shrink-0">
 
-                        {/* Filter per event — hanya muncul jika ada >1 event di tanggal ini */}
-                        {availableEvents.length > 1 && (
+                    {/* Baris 1: Event picker + filter tipe + export */}
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+
+                            {/* Primary: Event picker */}
                             <div className="relative">
                                 <select
                                     value={selectedEventId}
                                     onChange={(e) => setSelectedEventId(e.target.value)}
-                                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
+                                    disabled={isLoadingEvents}
+                                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-64 disabled:opacity-50"
                                 >
-                                    <option value="">Semua Event</option>
-                                    {availableEvents.map(ev => (
-                                        <option key={ev.id} value={ev.id}>{ev.nama}</option>
+                                    <option value="">
+                                        {isLoadingEvents ? 'Memuat event...' : '— Pilih Event —'}
+                                    </option>
+                                    {events.map(ev => (
+                                        <option key={ev.id} value={ev.id}>
+                                            {ev.nama_event}
+                                            {ev.status === 'aktif' ? ' ●' : ''}
+                                        </option>
                                     ))}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                                     <ChevronDown size={16} />
                                 </div>
                             </div>
-                        )}
 
-                        <div className="relative">
-                            <select
-                                value={filterType}
-                                onChange={(e) => setFilterType(e.target.value)}
-                                className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
-                            >
-                                <option>Semua Tipe Pengunjung</option>
-                                <option>Hanya Member (NFC)</option>
-                                <option>Hanya Pengunjung Biasa</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                                <ChevronDown size={16} />
+                            {/* Secondary: Filter tipe */}
+                            <div className="relative">
+                                <select
+                                    value={filterType}
+                                    onChange={(e) => setFilterType(e.target.value)}
+                                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 text-sm font-medium cursor-pointer shadow-sm w-full sm:w-auto"
+                                >
+                                    <option>Semua Tipe Pengunjung</option>
+                                    <option>Hanya Member (NFC)</option>
+                                    <option>Hanya Pengunjung Biasa</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                    <ChevronDown size={16} />
+                                </div>
                             </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full lg:w-auto">
+                            <button
+                                onClick={() => handleOpenExportModal('Excel')}
+                                disabled={!selectedEventId}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition"
+                            >
+                                <FileSpreadsheet size={16} /> Export Excel
+                            </button>
+                            <button
+                                onClick={() => handleOpenExportModal('PDF')}
+                                disabled={!selectedEventId}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition"
+                            >
+                                <FileText size={16} /> Export PDF
+                            </button>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full lg:w-auto">
-                        <button
-                            onClick={() => handleOpenExportModal('Excel')}
-                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 px-4 py-2.5 rounded-xl font-semibold text-sm transition"
-                        >
-                            <FileSpreadsheet size={16} /> Export Excel
-                        </button>
-                        <button
-                            onClick={() => handleOpenExportModal('PDF')}
-                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-4 py-2.5 rounded-xl font-semibold text-sm transition"
-                        >
-                            <FileText size={16} /> Export PDF
-                        </button>
-                    </div>
+                    {/* Baris 2: Date pills — hanya tampil jika ada tanggal_range dari response */}
+                    {reportData?.tanggal_range?.length > 1 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-gray-400 font-medium shrink-0">Filter hari:</span>
+                            <button
+                                onClick={() => setSelectedDate('')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                                    selectedDate === ''
+                                        ? 'bg-green-700 text-white border-green-700'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
+                                }`}
+                            >
+                                Semua Hari ({reportData.tanggal_range.length})
+                            </button>
+                            {reportData.tanggal_range.map(tgl => (
+                                <button
+                                    key={tgl}
+                                    onClick={() => setSelectedDate(tgl === selectedDate ? '' : tgl)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                                        selectedDate === tgl
+                                            ? 'bg-green-700 text-white border-green-700'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-green-400'
+                                    }`}
+                                >
+                                    {fmtTanggal(tgl)}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* TABEL DATA */}
@@ -273,10 +327,16 @@ const Reports = () => {
                                     Memuat data laporan...
                                 </td>
                             </tr>
+                        ) : !selectedEventId ? (
+                            <tr>
+                                <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
+                                    Pilih event di atas untuk melihat laporan kunjungan.
+                                </td>
+                            </tr>
                         ) : pagedReports.length === 0 ? (
                             <tr>
                                 <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                                    Tidak ada data untuk tanggal dan filter yang dipilih.
+                                    Tidak ada data untuk filter yang dipilih.
                                 </td>
                             </tr>
                         ) : (
@@ -401,13 +461,23 @@ const Reports = () => {
                     nomor halaman dinamis, Prev/Next berfungsi. */}
                 <div className="p-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-gray-500 shrink-0">
                     <span>
-                        {totalItems === 0
-                            ? 'Tidak ada data'
-                            : `Menampilkan ${indexOfFirst + 1}–${Math.min(indexOfLast, totalItems)} dari ${totalItems} entri`
+                        {!selectedEventId
+                            ? 'Pilih event untuk melihat data'
+                            : totalItems === 0
+                                ? 'Tidak ada data'
+                                : `Menampilkan ${indexOfFirst + 1}–${Math.min(indexOfLast, totalItems)} dari ${totalItems} entri`
                         }
                         {reportData?.nama_event && (
                             <span className="ml-2 text-xs text-gray-400">
                                 — <strong className="text-gray-600">{reportData.nama_event}</strong>
+                                {selectedDate
+                                    ? ` · ${fmtTanggal(selectedDate)}`
+                                    : reportData.tanggal_range?.length > 1
+                                        ? ` · ${reportData.tanggal_range.length} hari`
+                                        : reportData.tanggal_range?.length === 1
+                                            ? ` · ${fmtTanggal(reportData.tanggal_range[0])}`
+                                            : ''
+                                }
                             </span>
                         )}
                     </span>
@@ -511,11 +581,20 @@ const Reports = () => {
                                     <span className="font-bold text-gray-800">{exportFormat} Document</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Tanggal Laporan:</span>
+                                    <span className="text-gray-500">Event:</span>
+                                    <span className="font-bold text-gray-800 text-right max-w-[200px] truncate">
+                                        {reportData?.nama_event || events.find(e => e.id === selectedEventId)?.nama_event || '-'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Scope:</span>
                                     <span className="font-bold text-gray-800">
-                                        {new Date(selectedDate).toLocaleDateString('id-ID', {
-                                            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-                                        })}
+                                        {selectedDate
+                                            ? fmtTanggal(selectedDate)
+                                            : reportData?.tanggal_range?.length > 1
+                                                ? `Seluruh Event (${reportData.tanggal_range.length} hari)`
+                                                : 'Seluruh Event'
+                                        }
                                     </span>
                                 </div>
                                 <div className="flex justify-between">

@@ -5,12 +5,15 @@ import {
     Utensils, Coffee, Shirt, Store, AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const Tenants = () => {
+    const toast = useToast();
     const [tenants, setTenants] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSync, setLastSync] = useState(new Date());
+    const [fetchError, setFetchError] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
@@ -63,8 +66,11 @@ const Tenants = () => {
             });
 
             setTenants(tenantsWithPromo);
+            setFetchError(false);
         } catch (error) {
             console.error('Gagal mengambil data tenant:', error);
+            setFetchError(true);
+            toast.error('Gagal memuat data tenant UMKM. Coba sinkronisasi ulang.');
         } finally {
             setIsLoading(false);
         }
@@ -80,7 +86,7 @@ const Tenants = () => {
             await fetchTenants();
             setLastSync(new Date());
         } catch (error) {
-            alert('Gagal melakukan sinkronisasi dengan server UMKM.');
+            toast.error('Gagal melakukan sinkronisasi dengan server UMKM.');
         } finally {
             setIsSyncing(false);
         }
@@ -134,16 +140,28 @@ const Tenants = () => {
             </div>
 
             {/* INFO STATUS API */}
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-start gap-3">
-                <CheckCircle className="text-green-600 mt-0.5 shrink-0" size={20} />
-                <div>
-                    <h4 className="text-sm font-bold text-green-800">Terhubung dengan Sistem UMKM</h4>
-                    <p className="text-xs text-green-700 mt-1">
-                        Sinkronisasi terakhir: {lastSync.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB.
-                        Menampilkan {filteredTenants.length} Tenant aktif.
-                    </p>
+            {fetchError ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 flex items-start gap-3">
+                    <AlertCircle className="text-red-500 mt-0.5 shrink-0" size={20} />
+                    <div>
+                        <h4 className="text-sm font-bold text-red-800">Gagal Terhubung ke API UMKM</h4>
+                        <p className="text-xs text-red-700 mt-1">
+                            Data tenant tidak dapat dimuat. Periksa koneksi atau coba sinkronisasi ulang.
+                        </p>
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 flex items-start gap-3">
+                    <CheckCircle className="text-green-600 mt-0.5 shrink-0" size={20} />
+                    <div>
+                        <h4 className="text-sm font-bold text-green-800">Terhubung dengan Sistem UMKM</h4>
+                        <p className="text-xs text-green-700 mt-1">
+                            Sinkronisasi terakhir: {lastSync.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB.
+                            Menampilkan {filteredTenants.length} Tenant aktif.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* GRID CARDS TENANT */}
             {isLoading ? (

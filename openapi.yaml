@@ -192,14 +192,12 @@ paths:
         - Event
       summary: Buat event baru
       description: |
-        Membuat event baru. Event yang baru dibuat otomatis berstatus **aktif**,
-        sehingga sistem langsung dapat menerima tap NFC dan input manual
-        pengunjung tanpa perlu langkah aktivasi tambahan.
-
-        **Catatan:** Tidak ada batasan teknis jumlah event aktif secara bersamaan,
-        namun disarankan hanya ada satu event aktif agar statistik dashboard
-        tidak bercampur. Admin bertanggung jawab menonaktifkan event lama
-        sebelum membuat event baru jika diperlukan.
+        Membuat event baru. Status event ditentukan **otomatis** berdasarkan tanggal:
+        - Tanggal **hari ini** → status langsung `aktif`, sistem langsung menerima tap NFC
+          dan input manual. Event aktif lain otomatis dinonaktifkan (invariant: hanya satu
+          event aktif di satu waktu).
+        - Tanggal **masa depan atau masa lalu** → status `selesai` (belum mulai / arsip).
+          Admin dapat mengaktifkannya manual di hari pelaksanaan via `PATCH /events/{id}`.
 
         **Requirement:** REQ-EVENT-001
         **Aktor:** Admin
@@ -219,7 +217,10 @@ paths:
               lokasi: "Alun-alun Purwokerto"
       responses:
         '201':
-          description: Event baru berhasil dibuat dengan status aktif.
+          description: |
+            Event baru berhasil dibuat. Field `status` pada response mencerminkan
+            status yang ditetapkan otomatis berdasarkan tanggal (`aktif` jika hari ini,
+            `selesai` jika masa depan atau masa lalu).
           content:
             application/json:
               schema:
@@ -233,16 +234,31 @@ paths:
                     example: "Event berhasil dibuat"
                   data:
                     $ref: '#/components/schemas/Event'
-              example:
-                status: "success"
-                message: "Event berhasil dibuat"
-                data:
-                  id: "e9f0a1b2-c3d4-5e6f-7890-123456789012"
-                  nama_event: "Pekan Banyumasan Juli 2025"
-                  tanggal: "2025-07-01"
-                  lokasi: "Alun-alun Purwokerto"
-                  status: "aktif"
-                  created_at: "2025-06-25T09:00:00+07:00"
+              examples:
+                event_hari_ini:
+                  summary: Tanggal hari ini → langsung aktif
+                  value:
+                    status: "success"
+                    message: "Event berhasil dibuat"
+                    data:
+                      id: "e9f0a1b2-c3d4-5e6f-7890-123456789012"
+                      nama_event: "Pekan Banyumasan Juli 2025"
+                      tanggal: "2025-07-01"
+                      lokasi: "Alun-alun Purwokerto"
+                      status: "aktif"
+                      created_at: "2025-07-01T09:00:00+07:00"
+                event_masa_depan:
+                  summary: Tanggal masa depan → selesai (belum mulai)
+                  value:
+                    status: "success"
+                    message: "Event berhasil dibuat"
+                    data:
+                      id: "e9f0a1b2-c3d4-5e6f-7890-123456789013"
+                      nama_event: "Pekan Banyumasan Agustus 2025"
+                      tanggal: "2025-08-15"
+                      lokasi: "Alun-alun Purwokerto"
+                      status: "selesai"
+                      created_at: "2025-07-01T09:00:00+07:00"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -957,8 +973,8 @@ paths:
         - `total_harian` → Total pengunjung dalam satu hari ini (REQ-DASH-004)
 
         **Requirement:** REQ-DASH-001, REQ-DASH-002, REQ-DASH-003, REQ-DASH-004
-        **Aktor:** Admin
-        **Akses:** Admin only (JWT dengan role `admin`)
+        **Aktor:** Admin, Petugas
+        **Akses:** Admin dan Petugas (JWT dengan role `admin` atau `petugas`)
         **Acceptance Criteria AC-004:** Data diperbarui dalam < 3 detik via Supabase Realtime
       operationId: getDashboardStats
       security:

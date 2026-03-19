@@ -78,8 +78,9 @@ api.interceptors.response.use(
 
             case 403:
                 // User login tapi role tidak mencukupi (petugas → endpoint admin-only).
-                // Tidak redirect — user tetap login, hanya tampilkan pesan.
-                alert(message || 'Akses ditolak. Anda tidak memiliki izin untuk mengakses fitur ini.');
+                // Tidak redirect dan tidak alert — biarkan komponen menampilkan error
+                // via catch block mereka sendiri (toast.error sudah ada di setiap halaman).
+                // Alert di sini akan menyebabkan notifikasi ganda (alert + toast).
                 break;
 
             default:

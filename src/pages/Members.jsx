@@ -17,7 +17,7 @@ const EMPTY_FORM = {
     email: '',
     nfc_uid: '',
     status: 'aktif',
-    tanggal_daftar: new Date().toISOString().split('T')[0],
+    tanggal_daftar: '',
 };
 
 // ── Komponen Drawer ───────────────────────────────────────────────────────────
@@ -243,7 +243,10 @@ const Members = () => {
     // ── Drawer helpers ────────────────────────────────────────────────────────
 
     const openAddDrawer = () => {
-        setFormData(EMPTY_FORM);
+        // Gunakan local date bukan UTC agar tanggal default sesuai WIB
+        const d = new Date();
+        const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        setFormData({ ...EMPTY_FORM, tanggal_daftar: todayLocal });
         setIsEditMode(false);
         setIsDrawerOpen(true);
     };
@@ -526,35 +529,66 @@ const Members = () => {
                                 </span>
                             )}
                         </span>
-                        <div className="flex gap-1">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition text-xs"
-                            >
-                                &laquo; Prev
-                            </button>
-                            {[...Array(totalPages)].map((_, i) => (
+                        {totalPages > 1 && (
+                            <div className="flex gap-1">
                                 <button
-                                    key={i + 1}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`px-3 py-1 border rounded transition text-xs ${
-                                        currentPage === i + 1
-                                            ? 'bg-green-50 text-green-700 border-green-200 font-semibold'
-                                            : 'border-gray-200 hover:bg-gray-50'
-                                    }`}
+                                    onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition text-xs"
                                 >
-                                    {i + 1}
+                                    &laquo; Prev
                                 </button>
-                            ))}
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition text-xs"
-                            >
-                                Next &raquo;
-                            </button>
-                        </div>
+
+                                {/* Windowed page numbers — max 5 di sekitar halaman aktif */}
+                                {(() => {
+                                    const delta = 2;
+                                    const pages = [];
+                                    for (
+                                        let i = Math.max(1, currentPage - delta);
+                                        i <= Math.min(totalPages, currentPage + delta);
+                                        i++
+                                    ) pages.push(i);
+
+                                    return (
+                                        <>
+                                            {pages[0] > 1 && (
+                                                <>
+                                                    <button onClick={() => setCurrentPage(1)} className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 transition text-xs">1</button>
+                                                    {pages[0] > 2 && <span className="px-1 text-gray-400 self-center">…</span>}
+                                                </>
+                                            )}
+                                            {pages.map(p => (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setCurrentPage(p)}
+                                                    className={`px-3 py-1 border rounded transition text-xs ${
+                                                        currentPage === p
+                                                            ? 'bg-green-50 text-green-700 border-green-200 font-semibold'
+                                                            : 'border-gray-200 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                            {pages[pages.length - 1] < totalPages && (
+                                                <>
+                                                    {pages[pages.length - 1] < totalPages - 1 && <span className="px-1 text-gray-400 self-center">…</span>}
+                                                    <button onClick={() => setCurrentPage(totalPages)} className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 transition text-xs">{totalPages}</button>
+                                                </>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 transition text-xs"
+                                >
+                                    Next &raquo;
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
