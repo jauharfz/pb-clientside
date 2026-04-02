@@ -195,7 +195,7 @@ const Tenants = () => {
 
                                 <div className="p-6 pt-8 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-1 gap-2">
-                                        <h3 className="font-bold text-gray-800 text-lg leading-tight line-clamp-1" title={tenant.nama_tenant}>
+                                        <h3 className="font-bold text-gray-800 text-lg leading-tight" title={tenant.nama_tenant}>
                                             {tenant.nama_tenant}
                                         </h3>
                                         <span className={`${style.badge} text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap`}>
