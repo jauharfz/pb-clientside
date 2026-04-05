@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search, RefreshCw, CheckCircle,
-    Utensils, Coffee, Shirt, Store, AlertCircle
+    Utensils, Coffee, Shirt, Store, AlertCircle,
+    Tag, ChevronDown, ChevronUp, Percent
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -15,43 +16,35 @@ const Tenants = () => {
     const [lastSync, setLastSync] = useState(new Date());
     const [fetchError, setFetchError] = useState(false);
 
+    // Track which card has discounts expanded
+    const [expandedId, setExpandedId] = useState(null);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
 
     const getCategoryStyle = (category) => {
         const cat = category?.toLowerCase() || '';
         if (cat.includes('makanan') || cat.includes('kuliner')) {
-            return { icon: Utensils, bg: 'bg-orange-100', text: 'text-orange-500', badge: 'bg-orange-50 text-orange-700' };
+            return { icon: Utensils, bg: 'bg-orange-100', text: 'text-orange-500', badge: 'bg-orange-50 text-orange-700', accentBorder: 'border-orange-200', accentBg: 'bg-orange-50', accentText: 'text-orange-800', pill: 'bg-orange-100 text-orange-700' };
         }
         if (cat.includes('minuman')) {
-            return { icon: Coffee, bg: 'bg-amber-100', text: 'text-amber-600', badge: 'bg-amber-50 text-amber-700' };
+            return { icon: Coffee, bg: 'bg-amber-100', text: 'text-amber-600', badge: 'bg-amber-50 text-amber-700', accentBorder: 'border-amber-200', accentBg: 'bg-amber-50', accentText: 'text-amber-800', pill: 'bg-amber-100 text-amber-700' };
         }
         if (cat.includes('fashion') || cat.includes('kriya') || cat.includes('pakaian') || cat.includes('kerajinan')) {
-            return { icon: Shirt, bg: 'bg-purple-100', text: 'text-purple-600', badge: 'bg-purple-50 text-purple-700' };
+            return { icon: Shirt, bg: 'bg-purple-100', text: 'text-purple-600', badge: 'bg-purple-50 text-purple-700', accentBorder: 'border-purple-200', accentBg: 'bg-purple-50', accentText: 'text-purple-800', pill: 'bg-purple-100 text-purple-700' };
         }
-        return { icon: Store, bg: 'bg-green-100', text: 'text-green-600', badge: 'bg-green-50 text-green-800' };
+        return { icon: Store, bg: 'bg-green-100', text: 'text-green-600', badge: 'bg-green-50 text-green-800', accentBorder: 'border-green-200', accentBg: 'bg-green-50', accentText: 'text-green-900', pill: 'bg-green-100 text-green-700' };
     };
 
     /**
      * Fetch data tenant (GET /umkm) dan diskon aktif (GET /discounts) secara paralel,
      * lalu merge berdasarkan tenant_id.
-     *
-     * PENTING — perubahan dari versi lama:
-     *   SEBELUM: d.tenant?.id === tenant.id
-     *            → SALAH karena discounts lama dibaca dari tabel diskon_member
-     *              lokal Gate yang punya UUID sendiri (beda dengan UUID dari UMKM API).
-     *   SESUDAH: d.tenant_id === tenant.id
-     *            → BENAR karena discounts sekarang di-proxy dari UMKM Backend
-     *              /api/public/diskon yang mengembalikan field tenant_id berisi
-     *              UUID umkm.id — sama persis dengan UUID yang dikembalikan oleh
-     *              /api/umkm (proxy dari UMKM Backend /api/public/tenant).
+     * Menyimpan SEMUA diskon per tenant sebagai array `all_discounts`.
      */
     const fetchTenants = useCallback(async () => {
         try {
             setIsLoading(true);
 
-            // Fetch tenant dan diskon secara paralel, tapi tangani error diskon
-            // secara independen agar tenant tetap tampil walau diskon gagal.
             const [umkmRes, discountsResult] = await Promise.all([
                 api.get('/umkm'),
                 api.get('/discounts', { params: { is_aktif: true } }).catch(() => null),
@@ -60,18 +53,14 @@ const Tenants = () => {
             const umkmList     = umkmRes.data?.data || [];
             const discountList = discountsResult?.data?.data || [];
 
-            // Merge: cari semua diskon aktif per tenant berdasarkan tenant_id
+            // Merge: simpan SEMUA diskon aktif per tenant sebagai array
             const tenantsWithPromo = umkmList.map((tenant) => {
-                // Ambil SEMUA diskon untuk tenant ini (bukan hanya yang pertama)
                 const tenantDiscounts = discountList.filter(
                     (d) => d.tenant_id === tenant.id
                 );
-                const primaryDiscount = tenantDiscounts[0] || null;
                 return {
                     ...tenant,
-                    promo_aktif:       primaryDiscount ? primaryDiscount.deskripsi_diskon   : null,
-                    persentase_diskon: primaryDiscount ? primaryDiscount.persentase_diskon   : null,
-                    jumlah_promo:      tenantDiscounts.length,
+                    all_discounts: tenantDiscounts,
                 };
             });
 
@@ -99,6 +88,7 @@ const Tenants = () => {
         try {
             await fetchTenants();
             setLastSync(new Date());
+            setExpandedId(null); // reset expand state saat sync ulang
             toast.success('Data tenant berhasil disinkronisasi.');
         } catch (error) {
             toast.error('Gagal melakukan sinkronisasi dengan server UMKM.');
@@ -114,6 +104,9 @@ const Tenants = () => {
     });
 
     const uniqueCategories = ['Semua Kategori', ...new Set(tenants.map(t => t.kategori).filter(Boolean))];
+
+    // Berapa diskon yang ditampilkan tanpa expand
+    const PREVIEW_COUNT = 2;
 
     return (
         <div className="font-sans">
@@ -192,57 +185,118 @@ const Tenants = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredTenants.map((tenant) => {
-                        const style = getCategoryStyle(tenant.kategori);
-                        const Icon = style.icon;
+                        const style      = getCategoryStyle(tenant.kategori);
+                        const Icon       = style.icon;
+                        const discounts  = tenant.all_discounts || [];
+                        const hasDiscount = discounts.length > 0;
+                        const isExpanded = expandedId === tenant.id;
+
+                        // Tampilkan PREVIEW_COUNT diskon, sisanya disembunyikan
+                        const visibleDiscounts = isExpanded ? discounts : discounts.slice(0, PREVIEW_COUNT);
+                        const hiddenCount      = discounts.length - PREVIEW_COUNT;
 
                         return (
-                            <div key={tenant.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition group flex flex-col h-full">
+                            <div
+                                key={tenant.id}
+                                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition group flex flex-col h-full"
+                            >
+                                {/* ── Card Header ── */}
                                 <div className={`h-24 relative ${style.bg}`}>
-                                    <div className="absolute -bottom-6 left-6 w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-xl">
+                                    <div className="absolute -bottom-6 left-6 w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center">
                                         <Icon className={style.text} size={24} />
                                     </div>
+
+                                    {/* Badge nomor stand */}
                                     <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-700 shadow-sm">
                                         Stand {tenant.nomor_stand || '-'}
                                     </div>
+
+                                    {/* Badge jumlah promo — hanya tampil kalau ada diskon */}
+                                    {hasDiscount && (
+                                        <div className="absolute top-3 left-3 bg-green-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-1">
+                                            <Tag size={9} />
+                                            {discounts.length} Promo
+                                        </div>
+                                    )}
                                 </div>
 
+                                {/* ── Card Body ── */}
                                 <div className="p-6 pt-8 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-1 gap-2">
-                                        <h3 className="font-bold text-gray-800 text-lg leading-tight line-clamp-1" title={tenant.nama_tenant}>
+                                        <h3
+                                            className="font-bold text-gray-800 text-lg leading-tight line-clamp-1"
+                                            title={tenant.nama_tenant}
+                                        >
                                             {tenant.nama_tenant}
                                         </h3>
                                         <span className={`${style.badge} text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap`}>
                                             {tenant.kategori}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-gray-500 mb-4 line-clamp-2 flex-1">
+                                    <p className="text-xs text-gray-500 mb-4 line-clamp-2">
                                         {tenant.deskripsi || '—'}
                                     </p>
 
-                                    {tenant.promo_aktif ? (
-                                        <div className="bg-green-50 border border-green-100 rounded-xl p-3 mt-auto">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider">Promo Member NFC</div>
-                                                {tenant.jumlah_promo > 1 && (
-                                                    <span className="text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-semibold">
-                                                        +{tenant.jumlah_promo - 1} lainnya
+                                    {/* ── Blok Diskon ── */}
+                                    <div className="mt-auto">
+                                        {hasDiscount ? (
+                                            <div className={`border rounded-xl overflow-hidden ${style.accentBorder} ${style.accentBg}`}>
+
+                                                {/* Header blok diskon */}
+                                                <div className={`px-3 py-2 flex items-center justify-between border-b ${style.accentBorder}`}>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${style.accentText}`}>
+                                                        <Tag size={10} />
+                                                        Promo Member NFC
                                                     </span>
+                                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${style.pill}`}>
+                                                        {discounts.length} aktif
+                                                    </span>
+                                                </div>
+
+                                                {/* Daftar diskon yang terlihat */}
+                                                <div className={`divide-y ${style.accentBorder}`}>
+                                                    {visibleDiscounts.map((disc, idx) => (
+                                                        <div key={disc.id || idx} className="px-3 py-2.5 flex items-start gap-2">
+                                                            {/* Nomor urut */}
+                                                            <span className={`shrink-0 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center mt-0.5 ${style.pill}`}>
+                                                                {idx + 1}
+                                                            </span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-xs font-semibold leading-snug ${style.accentText}`}>
+                                                                    {disc.deskripsi_diskon}
+                                                                </p>
+                                                                {disc.persentase_diskon > 0 && (
+                                                                    <span className="inline-flex items-center gap-0.5 mt-1 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+                                                                        <Percent size={8} />
+                                                                        Hemat {disc.persentase_diskon}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Tombol expand/collapse — hanya muncul kalau lebih dari PREVIEW_COUNT */}
+                                                {discounts.length > PREVIEW_COUNT && (
+                                                    <button
+                                                        onClick={() => setExpandedId(isExpanded ? null : tenant.id)}
+                                                        className={`w-full flex items-center justify-center gap-1 py-2 text-[11px] font-semibold border-t transition-colors hover:bg-black/5 ${style.accentBorder} ${style.accentText}`}
+                                                    >
+                                                        {isExpanded ? (
+                                                            <><ChevronUp size={12} /> Sembunyikan</>
+                                                        ) : (
+                                                            <><ChevronDown size={12} /> {hiddenCount} promo lainnya</>
+                                                        )}
+                                                    </button>
                                                 )}
                                             </div>
-                                            <div className="font-semibold text-green-900 text-sm leading-tight">
-                                                {tenant.promo_aktif}
+                                        ) : (
+                                            /* Placeholder kalau tidak ada diskon */
+                                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-center h-[66px]">
+                                                <span className="text-xs text-gray-400 font-medium italic">Tidak ada promo aktif</span>
                                             </div>
-                                            {tenant.persentase_diskon > 0 && (
-                                                <div className="text-xs text-green-700 mt-1">
-                                                    Hemat {tenant.persentase_diskon}%
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-center h-[66px] mt-auto">
-                                            <span className="text-xs text-gray-400 font-medium italic">Tidak ada promo aktif</span>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );
