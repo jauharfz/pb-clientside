@@ -50,29 +50,37 @@ const Tenants = () => {
         try {
             setIsLoading(true);
 
-            const [umkmRes, discountsRes] = await Promise.all([
+            // Fetch tenant dan diskon secara paralel, tapi tangani error diskon
+            // secara independen agar tenant tetap tampil walau diskon gagal.
+            const [umkmRes, discountsResult] = await Promise.all([
                 api.get('/umkm'),
-                api.get('/discounts', { params: { is_aktif: true } }),
+                api.get('/discounts', { params: { is_aktif: true } }).catch(() => null),
             ]);
 
-            const umkmList     = umkmRes.data?.data     || [];
-            const discountList = discountsRes.data?.data || [];
+            const umkmList     = umkmRes.data?.data || [];
+            const discountList = discountsResult?.data?.data || [];
 
-            // Merge: cari diskon aktif per tenant berdasarkan tenant_id
+            // Merge: cari semua diskon aktif per tenant berdasarkan tenant_id
             const tenantsWithPromo = umkmList.map((tenant) => {
-                // FIX: gunakan d.tenant_id bukan d.tenant?.id
-                const matchingDiscount = discountList.find(
+                // Ambil SEMUA diskon untuk tenant ini (bukan hanya yang pertama)
+                const tenantDiscounts = discountList.filter(
                     (d) => d.tenant_id === tenant.id
                 );
+                const primaryDiscount = tenantDiscounts[0] || null;
                 return {
                     ...tenant,
-                    promo_aktif: matchingDiscount ? matchingDiscount.deskripsi_diskon : null,
-                    persentase_diskon: matchingDiscount ? matchingDiscount.persentase_diskon : null,
+                    promo_aktif:       primaryDiscount ? primaryDiscount.deskripsi_diskon   : null,
+                    persentase_diskon: primaryDiscount ? primaryDiscount.persentase_diskon   : null,
+                    jumlah_promo:      tenantDiscounts.length,
                 };
             });
 
             setTenants(tenantsWithPromo);
             setFetchError(false);
+
+            if (!discountsResult) {
+                toast.error('Data diskon sementara tidak dapat dimuat. Tenant tetap ditampilkan.');
+            }
         } catch (error) {
             console.error('Gagal mengambil data tenant:', error);
             setFetchError(true);
@@ -213,7 +221,14 @@ const Tenants = () => {
 
                                     {tenant.promo_aktif ? (
                                         <div className="bg-green-50 border border-green-100 rounded-xl p-3 mt-auto">
-                                            <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">Promo Member NFC</div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider">Promo Member NFC</div>
+                                                {tenant.jumlah_promo > 1 && (
+                                                    <span className="text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-semibold">
+                                                        +{tenant.jumlah_promo - 1} lainnya
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="font-semibold text-green-900 text-sm leading-tight">
                                                 {tenant.promo_aktif}
                                             </div>
