@@ -20,48 +20,54 @@ const Tenants = () => {
 
     const getCategoryStyle = (category) => {
         const cat = category?.toLowerCase() || '';
-        if (cat.includes('makanan')) {
+        if (cat.includes('makanan') || cat.includes('kuliner')) {
             return { icon: Utensils, bg: 'bg-orange-100', text: 'text-orange-500', badge: 'bg-orange-50 text-orange-700' };
         }
         if (cat.includes('minuman')) {
             return { icon: Coffee, bg: 'bg-amber-100', text: 'text-amber-600', badge: 'bg-amber-50 text-amber-700' };
         }
-        if (cat.includes('fashion') || cat.includes('kriya') || cat.includes('pakaian')) {
+        if (cat.includes('fashion') || cat.includes('kriya') || cat.includes('pakaian') || cat.includes('kerajinan')) {
             return { icon: Shirt, bg: 'bg-purple-100', text: 'text-purple-600', badge: 'bg-purple-50 text-purple-700' };
         }
         return { icon: Store, bg: 'bg-green-100', text: 'text-green-600', badge: 'bg-green-50 text-green-800' };
     };
 
-    // [FIX] Fetch data tenant dari endpoint yang benar dan merge dengan data diskon
+    /**
+     * Fetch data tenant (GET /umkm) dan diskon aktif (GET /discounts) secara paralel,
+     * lalu merge berdasarkan tenant_id.
+     *
+     * PENTING — perubahan dari versi lama:
+     *   SEBELUM: d.tenant?.id === tenant.id
+     *            → SALAH karena discounts lama dibaca dari tabel diskon_member
+     *              lokal Gate yang punya UUID sendiri (beda dengan UUID dari UMKM API).
+     *   SESUDAH: d.tenant_id === tenant.id
+     *            → BENAR karena discounts sekarang di-proxy dari UMKM Backend
+     *              /api/public/diskon yang mengembalikan field tenant_id berisi
+     *              UUID umkm.id — sama persis dengan UUID yang dikembalikan oleh
+     *              /api/umkm (proxy dari UMKM Backend /api/public/tenant).
+     */
     const fetchTenants = useCallback(async () => {
         try {
             setIsLoading(true);
 
-            // [FIX 1] Endpoint /tenants TIDAK ADA di OpenAPI spec.
-            //   Gunakan GET /umkm → data tenant dari API eksternal kelompok UMKM (REQ-INTEG-001)
-            //   OpenAPI GET /umkm response: { status, source: "external_umkm_api", data: TenantUmkm[] }
-            //
-            // [FIX 2] Field promo_aktif tidak ada di TenantUmkm schema.
-            //   Data promo ada di GET /discounts → DiskonMember[] (REQ-MEMBER-002)
-            //   Fetch keduanya secara paralel, lalu merge berdasarkan tenant.id
             const [umkmRes, discountsRes] = await Promise.all([
                 api.get('/umkm'),
                 api.get('/discounts', { params: { is_aktif: true } }),
             ]);
 
-            // [FIX 3] Ekstrak dari response.data.data (bukan response.data langsung)
-            const umkmList = umkmRes.data.data || [];
-            const discountList = discountsRes.data.data || [];
+            const umkmList     = umkmRes.data?.data     || [];
+            const discountList = discountsRes.data?.data || [];
 
-            // Merge: cari diskon aktif per tenant berdasarkan tenant.id
+            // Merge: cari diskon aktif per tenant berdasarkan tenant_id
             const tenantsWithPromo = umkmList.map((tenant) => {
+                // FIX: gunakan d.tenant_id bukan d.tenant?.id
                 const matchingDiscount = discountList.find(
-                    (d) => d.tenant?.id === tenant.id
+                    (d) => d.tenant_id === tenant.id
                 );
                 return {
                     ...tenant,
-                    // promo_aktif diisi dari deskripsi_diskon jika ada
                     promo_aktif: matchingDiscount ? matchingDiscount.deskripsi_diskon : null,
+                    persentase_diskon: matchingDiscount ? matchingDiscount.persentase_diskon : null,
                 };
             });
 
@@ -85,6 +91,7 @@ const Tenants = () => {
         try {
             await fetchTenants();
             setLastSync(new Date());
+            toast.success('Data tenant berhasil disinkronisasi.');
         } catch (error) {
             toast.error('Gagal melakukan sinkronisasi dengan server UMKM.');
         } finally {
@@ -93,12 +100,12 @@ const Tenants = () => {
     };
 
     const filteredTenants = tenants.filter(tenant => {
-        const matchSearch = tenant.nama_tenant.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchSearch = tenant.nama_tenant?.toLowerCase().includes(searchQuery.toLowerCase());
         const matchCategory = selectedCategory === 'Semua Kategori' || tenant.kategori === selectedCategory;
         return matchSearch && matchCategory;
     });
 
-    const uniqueCategories = ['Semua Kategori', ...new Set(tenants.map(t => t.kategori))];
+    const uniqueCategories = ['Semua Kategori', ...new Set(tenants.map(t => t.kategori).filter(Boolean))];
 
     return (
         <div className="font-sans">
@@ -186,8 +193,6 @@ const Tenants = () => {
                                     <div className="absolute -bottom-6 left-6 w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-xl">
                                         <Icon className={style.text} size={24} />
                                     </div>
-                                    {/* [FIX] Gunakan tenant.nomor_stand (field di TenantUmkm schema)
-                                        Bukan tenant.id.substring(0,4) yang hanya workaround */}
                                     <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-700 shadow-sm">
                                         Stand {tenant.nomor_stand || '-'}
                                     </div>
@@ -195,7 +200,7 @@ const Tenants = () => {
 
                                 <div className="p-6 pt-8 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-1 gap-2">
-                                        <h3 className="font-bold text-gray-800 text-lg leading-tight" title={tenant.nama_tenant}>
+                                        <h3 className="font-bold text-gray-800 text-lg leading-tight line-clamp-1" title={tenant.nama_tenant}>
                                             {tenant.nama_tenant}
                                         </h3>
                                         <span className={`${style.badge} text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap`}>
@@ -203,16 +208,20 @@ const Tenants = () => {
                                         </span>
                                     </div>
                                     <p className="text-xs text-gray-500 mb-4 line-clamp-2 flex-1">
-                                        {tenant.deskripsi}
+                                        {tenant.deskripsi || '—'}
                                     </p>
 
-                                    {/* [FIX] promo_aktif sekarang diisi dari merge dengan GET /discounts */}
                                     {tenant.promo_aktif ? (
                                         <div className="bg-green-50 border border-green-100 rounded-xl p-3 mt-auto">
                                             <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">Promo Member NFC</div>
                                             <div className="font-semibold text-green-900 text-sm leading-tight">
                                                 {tenant.promo_aktif}
                                             </div>
+                                            {tenant.persentase_diskon > 0 && (
+                                                <div className="text-xs text-green-700 mt-1">
+                                                    Hemat {tenant.persentase_diskon}%
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-center h-[66px] mt-auto">

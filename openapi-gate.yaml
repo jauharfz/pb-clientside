@@ -40,11 +40,15 @@ info:
 
 servers:
   - url: https://e88bb13d-bccc-47c6-ab6b-ea7444007d5e.mock.pstmn.io/api/
-    description: FastAPI Server
+    description: Postman Mock Server (untuk testing spec)
+  - url: https://<your-hf-space>.hf.space/api
+    description: "FastAPI Production Server (Hugging Spaces)"
     variables:
       host:
-        default: https://e88bb13d-bccc-47c6-ab6b-ea7444007d5e.mock.pstmn.io/api/
-        description: Host dan port FastAPI
+        default: https://<your-hf-space>.hf.space
+        description: Ganti dengan URL Hugging Spaces Gate deployment kamu
+  - url: http://localhost:8000/api
+    description: FastAPI Local Development Server
 
 tags:
   - name: Autentikasi
@@ -1108,15 +1112,19 @@ paths:
           example: "pdf"
         - name: tanggal
           in: query
-          description: Tanggal laporan yang akan diekspor (format YYYY-MM-DD)
-          required: true
+          description: |
+            Tanggal laporan (format YYYY-MM-DD). Opsional jika `event_id` disertakan
+            (tanpa filter tanggal → semua hari event). Wajib jika `event_id` tidak ada.
+          required: false
           schema:
             type: string
             format: date
           example: "2025-06-01"
         - name: event_id
           in: query
-          description: Filter laporan berdasarkan ID event
+          description: |
+            ID event laporan. Opsional jika `tanggal` disertakan.
+            Minimal satu dari `event_id` atau `tanggal` harus ada.
           required: false
           schema:
             type: string
@@ -1166,8 +1174,10 @@ paths:
       summary: Ambil data diskon dan benefit member dari tenant UMKM
       description: |
         Mengembalikan daftar diskon/benefit yang berlaku dari tenant UMKM.
-        Data berasal dari tabel `DISKON_MEMBER` yang berelasi dengan `TENANT_UMKM`
-        (join via PostgREST nested select).
+        Data berasal dari tabel `DISKON_MEMBER` Gate yang berelasi dengan `TENANT_UMKM`
+        (join via PostgREST nested select) — **keduanya adalah tabel di database Gate sendiri**,
+        terpisah dari database UMKM. Data perlu diisi manual atau disinkronkan
+        dari API UMKM (`GET /umkm` → `/api/public/diskon` di server UMKM).
 
         **Requirement:** REQ-MEMBER-002
         **Aktor:** Admin, Petugas
@@ -1566,7 +1576,10 @@ components:
 
     Kunjungan:
       type: object
-      description: Data kunjungan satu record (tabel KUNJUNGAN di Supabase)
+      description: |
+        Data kunjungan satu record (tabel KUNJUNGAN di Supabase).
+        `GET /visitors` menyertakan field `member` (nested object via PostgREST join)
+        berisi `{ nama: "..." }` untuk pengunjung member, atau `null` untuk tipe biasa.
       properties:
         id:
           type: string
@@ -1602,6 +1615,18 @@ components:
         created_at:
           type: string
           format: date-time
+        member:
+          type: object
+          nullable: true
+          description: |
+            Nested object dari PostgREST join — hanya tersedia pada response `GET /visitors`.
+            null untuk tipe_pengunjung = biasa.
+          properties:
+            nama:
+              type: string
+              example: "Budi Santoso"
+          example:
+            nama: "Budi Santoso" 
 
     ManualVisitorRequest:
       type: object
@@ -1675,6 +1700,8 @@ components:
             tanggal:
               type: string
               format: date
+              nullable: true
+              description: "null jika query berdasarkan event_id saja tanpa filter tanggal"
               example: "2025-06-01"
             event_id:
               type: string
@@ -1684,6 +1711,16 @@ components:
               type: string
               nullable: true
               example: "Pekan Banyumasan Juni 2025"
+            tanggal_range:
+              type: array
+              description: |
+                Daftar tanggal unik yang memiliki data kunjungan (urut ASC).
+                Digunakan frontend untuk pill-selector filter tanggal.
+                Kosong jika tidak ada data.
+              items:
+                type: string
+                format: date
+              example: ["2025-06-01", "2025-06-02", "2025-06-03"]
             ringkasan:
               type: object
               properties:
