@@ -25,6 +25,14 @@ const AdminLayout = () => {
         } catch { return null; }
     });
 
+    // Badge pending UMKM — disync dari Tenants page via localStorage + CustomEvent
+    const [pendingUmkmCount, setPendingUmkmCount] = useState(() => {
+        try {
+            const stored = localStorage.getItem('pekan_pending_umkm');
+            return stored ? parseInt(stored, 10) : 0;
+        } catch { return 0; }
+    });
+
     useEffect(() => {
         const handler = () => {
             try {
@@ -34,6 +42,16 @@ const AdminLayout = () => {
         };
         window.addEventListener('pekan_event_update', handler);
         return () => window.removeEventListener('pekan_event_update', handler);
+    }, []);
+
+    // Dengarkan update pending count dari Tenants page
+    useEffect(() => {
+        const handler = (e) => {
+            const count = e?.detail?.count ?? 0;
+            setPendingUmkmCount(count);
+        };
+        window.addEventListener('pekan_pending_umkm_update', handler);
+        return () => window.removeEventListener('pekan_pending_umkm_update', handler);
     }, []);
 
     useEffect(() => {
@@ -61,9 +79,8 @@ const AdminLayout = () => {
     const allNavItems = [
         { path: '/',        label: 'Dashboard',     icon: PieChart,  roles: ['admin', 'petugas'] },
         { path: '/members', label: 'Kelola Member', icon: Users,     roles: ['admin'] },
-        { path: '/tenants', label: 'Tenant UMKM',   icon: Store,     roles: ['admin'] },
+        { path: '/tenants', label: 'Tenant UMKM',   icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
         { path: '/reports', label: 'Laporan',       icon: FileText,  roles: ['admin'] },
-        // Opsi C: event management — admin only
         { path: '/events',  label: 'Kelola Event',  icon: Calendar,  roles: ['admin'] },
     ];
 
@@ -79,7 +96,7 @@ const AdminLayout = () => {
         switch (location.pathname) {
             case '/':         return { title: 'Dashboard Real-time',  subtitle: 'Pantau pergerakan pengunjung event hari ini' };
             case '/members':  return { title: 'Manajemen Member',     subtitle: 'Registrasi member baru dan kelola data keychain NFC' };
-            case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant dan promo diskon' };
+            case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant, promo diskon, dan persetujuan pendaftaran' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
             case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Pekan Banyumasan' };
             default:          return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
@@ -144,6 +161,7 @@ const AdminLayout = () => {
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
+                        const hasBadge = item.badge > 0;
                         return (
                             <Link
                                 key={item.path}
@@ -155,7 +173,22 @@ const AdminLayout = () => {
                                         : 'text-gray-600 hover:bg-gray-50 hover:text-green-700'
                                 }`}
                             >
-                                <Icon size={18} /> {item.label}
+                                {/* Ikon dengan badge dot jika ada pending */}
+                                <span className="relative shrink-0">
+                                    <Icon size={18} />
+                                    {hasBadge && (
+                                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                                            {item.badge > 9 ? '9+' : item.badge}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="flex-1">{item.label}</span>
+                                {/* Badge pill di kanan label */}
+                                {hasBadge && (
+                                    <span className="shrink-0 bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-amber-200 leading-none">
+                                        {item.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
@@ -166,8 +199,6 @@ const AdminLayout = () => {
                             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2 px-1">Halaman Publik</div>
                             {externalLinks.map((item) => {
                                 const Icon = item.icon;
-                                // Gunakan <a href> dengan hash URL agar bekerja di semua static host
-                                // tanpa perlu konfigurasi server (HashRouter).
                                 const hashHref = `${window.location.origin}${window.location.pathname}#${item.path}`;
                                 return (
                                     <a
@@ -180,7 +211,6 @@ const AdminLayout = () => {
                                     >
                                         <Icon size={18} />
                                         <span className="flex-1">{item.label}</span>
-                                        {/* Ikon penanda "buka tab baru" */}
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 opacity-40">
                                             <path fillRule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
                                         </svg>
@@ -231,6 +261,13 @@ const AdminLayout = () => {
                                     <span className="hidden sm:inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></span>
                                         {activeEventBadge.nama}
+                                    </span>
+                                )}
+                                {/* Badge pending di header Tenants */}
+                                {location.pathname === '/tenants' && pendingUmkmCount > 0 && (
+                                    <span className="hidden sm:inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                                        {pendingUmkmCount} pendaftaran masuk
                                     </span>
                                 )}
                             </div>
