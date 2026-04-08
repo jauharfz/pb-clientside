@@ -4,7 +4,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     PieChart, Users, Store, FileText, LogOut,
     User, Menu, X, ShieldCheck, UserCog,
-    Calendar, Monitor, BookOpen, SettingsIcon
+    Calendar, Monitor, BookOpen, Settings
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -61,6 +61,18 @@ const AdminLayout = () => {
         }
     }, []);
 
+    // Dengarkan update user data (misal nama diubah di halaman Settings)
+    useEffect(() => {
+        const handler = () => {
+            try {
+                const stored = localStorage.getItem('user');
+                if (stored) setUserData(JSON.parse(stored));
+            } catch { /* abaikan */ }
+        };
+        window.addEventListener('pekan_user_update', handler);
+        return () => window.removeEventListener('pekan_user_update', handler);
+    }, []);
+
     const handleLogout = () => {
         setShowLogoutConfirm(true);
     };
@@ -82,6 +94,7 @@ const AdminLayout = () => {
         { path: '/tenants', label: 'Tenant UMKM',   icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
         { path: '/reports', label: 'Laporan',       icon: FileText,  roles: ['admin'] },
         { path: '/events',  label: 'Kelola Event',  icon: Calendar,  roles: ['admin'] },
+        { path: '/settings', label: 'Pengaturan Akun', icon: Settings, roles: ['admin', 'petugas'] },
     ];
 
     const navItems = allNavItems.filter(item => item.roles.includes(userData.role));
@@ -90,7 +103,6 @@ const AdminLayout = () => {
     const externalLinks = [
         { path: '/monitor', label: 'Display Monitor', icon: Monitor },
         { path: '/profile', label: 'Company Profile', icon: BookOpen },
-        { path: '/settings', label: 'Settings', icon: SettingsIcon }
     ];
 
     const getPageInfo = () => {
