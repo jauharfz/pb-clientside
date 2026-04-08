@@ -183,7 +183,7 @@ RegistrationCard.displayName = 'RegistrationCard';
 
 // ─── PendingPanel ─────────────────────────────────────────────────────────────
 // Panel collapsible untuk daftar pendaftaran pending di atas Tenant cards.
-const PendingPanel = memo(({ onCountChange }) => {
+const PendingPanel = memo(({ onCountChange, onRegistrationsChanged }) => {
     const toast = useToast();
     const [pending,       setPending      ] = useState([]);
     const [isLoading,     setIsLoading    ] = useState(true);
@@ -219,6 +219,7 @@ const PendingPanel = memo(({ onCountChange }) => {
             await api.patch(`/umkm/registrations/${id}`, { status: 'approved' });
             toast.success('Pendaftaran UMKM berhasil disetujui.');
             await fetchPending();
+            await onRegistrationsChanged?.();
         } catch (err) {
             const msg = err.response?.data?.detail?.message || 'Gagal menyetujui pendaftaran.';
             toast.error(msg);
@@ -233,6 +234,7 @@ const PendingPanel = memo(({ onCountChange }) => {
             await api.patch(`/umkm/registrations/${id}`, { status: 'rejected' });
             toast.success('Pendaftaran UMKM berhasil ditolak.');
             await fetchPending();
+            await onRegistrationsChanged?.();
         } catch (err) {
             const msg = err.response?.data?.detail?.message || 'Gagal menolak pendaftaran.';
             toast.error(msg);
@@ -511,7 +513,10 @@ const Tenants = () => {
         <div className="font-sans">
 
             {/* ── PENDING REGISTRATIONS PANEL ── */}
-            <PendingPanel onCountChange={handlePendingCountChange} />
+            <PendingPanel
+                onCountChange={handlePendingCountChange}
+                onRegistrationsChanged={fetchTenants}
+            />
 
             {/* ── TOOLBAR ── */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">

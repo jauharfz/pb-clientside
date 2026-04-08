@@ -1,400 +1,279 @@
-// src/pages/Profile.jsx
-// Halaman Company Profile — REQ-PROFILE-001
-// Ditujukan untuk masyarakat umum dan pengunjung event Pekan Banyumasan.
-// Halaman statis di sisi frontend React, tidak memerlukan backend API.
-// Dapat diakses tanpa login (PublicRoute).
-
-import React, { useState } from 'react';
-import {
-    MapPin, Phone, Mail, Calendar,
-    ChevronDown, Star,
-    Wifi, Gift, Store, ArrowRight,
-    Clock, Music, Utensils
-} from 'lucide-react';
-
-// ── Data statis ───────────────────────────────────────────────────────────────
+import { useMemo } from "react";
 
 const FAQ = [
-    {
-        q: 'Apa itu Pekan Banyumasan?',
-        a: 'Pekan Banyumasan adalah festival budaya, kuliner, dan UMKM khas Banyumas yang diselenggarakan secara rutin. Acara ini menghadirkan ratusan booth makanan, minuman, kerajinan tangan, dan pertunjukan seni tradisional untuk seluruh lapisan masyarakat.',
-    },
-    {
-        q: 'Apakah tiket masuk berbayar?',
-        a: 'Masuk ke area Pekan Banyumasan GRATIS untuk semua pengunjung. Biaya hanya dikenakan jika Anda membeli produk dari tenant UMKM yang berpartisipasi.',
-    },
-    {
-        q: 'Apa itu Keychain NFC Member?',
-        a: 'Keychain NFC adalah gantungan kunci kecil berteknologi chip yang bisa Anda dapatkan dengan mendaftar sebagai member. Cukup dekatkan ke alat di pintu masuk — sistem langsung mencatat kunjungan Anda dan Anda mendapat diskon eksklusif di booth UMKM.',
-    },
-    {
-        q: 'Bagaimana cara mendaftar member?',
-        a: 'Datang ke loket pendaftaran di area pintu masuk event, berikan nama dan nomor WhatsApp aktif kepada petugas, dan Anda akan langsung menerima keychain NFC. Pendaftaran cepat, mudah, dan GRATIS.',
-    },
-    {
-        q: 'Apakah keychain NFC bisa dipakai lagi di event berikutnya?',
-        a: 'Ya! Keychain NFC Anda terdaftar permanen di sistem dan dapat digunakan di seluruh event Pekan Banyumasan berikutnya selama kartu masih aktif.',
-    },
-    {
-        q: 'Di mana lokasi event berlangsung?',
-        a: 'Pekan Banyumasan diselenggarakan di Alun-alun Purwokerto dan beberapa lokasi di sekitar Kabupaten Banyumas. Informasi lokasi spesifik diumumkan melalui media sosial kami menjelang hari H.',
-    },
+  {
+    q: "Apa itu Peken Banyumasan?",
+    a: "Peken Banyumasan adalah ruang temu publik yang menghadirkan event budaya, tenant UMKM lokal, pengalaman member NFC, dan aktivitas promosi yang terhubung dalam satu ekosistem sistem.",
+  },
+  {
+    q: "Apakah halaman ini khusus untuk UMKM saja?",
+    a: "Tidak. Halaman ini diposisikan sebagai company profile umum Peken Banyumasan. Pelaku usaha dapat menggunakan jalur pendaftaran UMKM, sedangkan pengunjung dapat memahami ekosistem event dan manfaat member NFC.",
+  },
+  {
+    q: "Bagaimana alur pendaftaran UMKM?",
+    a: "Pelaku usaha mengisi formulir pendaftaran, mengunggah dokumen pendukung, memilih stand yang tersedia, lalu menunggu verifikasi admin Gate sebelum akun operasional digunakan.",
+  },
+  {
+    q: "Apakah promo tenant bisa terhubung ke member NFC?",
+    a: "Ya. Promo aktif dari tenant UMKM dapat terintegrasi ke benefit member NFC sehingga pengunjung memperoleh pengalaman yang lebih konsisten saat event berlangsung.",
+  },
 ];
 
 const HIGHLIGHTS = [
-    { icon: Utensils, label: 'Kuliner Khas', desc: 'Soto Sokaraja, Mendoan, Wedang Uwuh, dan ratusan hidangan Banyumasan lainnya' },
-    { icon: Store,    label: 'UMKM Lokal',  desc: 'Lebih dari 40 booth kerajinan, batik, fashion, dan produk unggulan daerah' },
-    { icon: Music,    label: 'Seni Budaya', desc: 'Pertunjukan calung, lengger, dan berbagai kesenian tradisional Banyumas' },
-    { icon: Gift,     label: 'Promo Member',desc: 'Diskon eksklusif di semua booth UMKM hanya dengan memiliki keychain NFC member' },
+  {
+    icon: "🎪",
+    title: "Event & Aktivitas Publik",
+    desc: "Identitas Peken Banyumasan ditampilkan sebagai event publik yang rapi, jelas, dan mudah dipahami pengunjung.",
+  },
+  {
+    icon: "🏪",
+    title: "Pendaftaran UMKM",
+    desc: "Jalur pendaftaran usaha dibuat sebagai pintu masuk resmi untuk tenant yang ingin bergabung di ekosistem event.",
+  },
+  {
+    icon: "📡",
+    title: "Member NFC",
+    desc: "Teknologi NFC mendukung pencatatan kunjungan dan dapat dikaitkan dengan benefit promosi tenant saat event berjalan.",
+  },
+  {
+    icon: "🔗",
+    title: "Integrasi Gate + UMKM",
+    desc: "Data tenant, promo, dan operasional bergerak dalam ekosistem yang saling terhubung tanpa membuat tampilan publik terasa teknis.",
+  },
 ];
 
-const MANFAAT_MEMBER = [
-    'Diskon khusus di 40+ booth UMKM peserta',
-    'Tidak perlu antre panjang di pintu masuk',
-    'Data kunjungan Anda tercatat otomatis',
-    'Keychain berlaku untuk semua event Pekan Banyumasan',
-    'Pendaftaran gratis, tanpa biaya apapun',
-];
+function FaqItem({ item }) {
+  const id = item.q.replace(/\s+/g, "-").toLowerCase();
+  return (
+    <details className="pp-faq-item">
+      <summary className="pp-faq-btn" id={id}>
+        <span>{item.q}</span>
+        <span className="pp-faq-chevron">⌄</span>
+      </summary>
+      <p className="pp-faq-body">{item.a}</p>
+    </details>
+  );
+}
 
-// ── Komponen FAQ ──────────────────────────────────────────────────────────────
+const jumpTo = (id) => {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
 
-const FaqItem = ({ item }) => {
-    const [open, setOpen] = useState(false);
-    return (
-        <div className="border-b border-stone-200 last:border-0">
-            <button
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between py-5 text-left gap-4 group"
-            >
-                <span className="font-semibold text-gray-800 group-hover:text-green-700 transition text-sm md:text-base leading-snug">
-                    {item.q}
-                </span>
-                <ChevronDown
-                    size={18}
-                    className={`shrink-0 text-gray-400 transition-transform duration-300 ${open ? 'rotate-180 text-green-600' : ''}`}
-                />
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-48 pb-5' : 'max-h-0'}`}>
-                <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
+const openRegister = () => {
+  const target = import.meta.env.VITE_UMKM_PUBLIC_URL || "/daftar-umkm";
+  window.location.href = target;
+};
+
+export default function CompanyProfile() {
+  const todayLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(new Date());
+    } catch {
+      return "Peken Banyumas";
+    }
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        *{box-sizing:border-box}
+        body{margin:0;font-family:'Plus Jakarta Sans',sans-serif;background:#fff;color:#1f2937}
+        .pp-root{min-height:100vh;background:#fff}
+        .pp-serif{font-family:'Lora',serif}
+        .pp-nav{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-bottom:1px solid #f0f0f0}
+        .pp-nav-inner,.pp-section,.pp-hero{max-width:1120px;margin:0 auto;padding:0 24px}
+        .pp-nav-inner{height:68px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+        .pp-brand{display:flex;align-items:center;gap:12px;font-weight:700;color:#111827}
+        .pp-brand-mark{width:40px;height:40px;border-radius:12px;background:#166534;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 10px 24px rgba(22,101,52,.18)}
+        .pp-nav-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+        .pp-link-btn,.pp-primary-btn,.pp-secondary-btn{border:none;border-radius:14px;padding:12px 18px;font-weight:700;cursor:pointer;transition:.2s;font-family:'Plus Jakarta Sans',sans-serif}
+        .pp-link-btn{background:transparent;color:#4b5563;padding:8px 12px}
+        .pp-link-btn:hover{background:#f3f4f6;color:#166534}
+        .pp-primary-btn{background:#166534;color:#fff;box-shadow:0 12px 24px rgba(22,101,52,.18)}
+        .pp-primary-btn:hover{transform:translateY(-1px);background:#14532d}
+        .pp-secondary-btn{background:#fff;color:#166534;border:1.5px solid #166534}
+        .pp-secondary-btn:hover{background:#f0fdf4}
+        .pp-hero-wrap{background:linear-gradient(135deg,#166534 0%,#14532d 42%,#052e16 100%);overflow:hidden;position:relative}
+        .pp-hero-wrap:before{content:'';position:absolute;inset:-120px auto auto -120px;width:320px;height:320px;border-radius:999px;background:rgba(251,191,36,.12);filter:blur(30px)}
+        .pp-hero-wrap:after{content:'';position:absolute;right:-100px;bottom:-120px;width:340px;height:340px;border-radius:999px;background:rgba(34,197,94,.14);filter:blur(30px)}
+        .pp-hero{display:grid;grid-template-columns:1.15fr .85fr;gap:36px;align-items:center;padding-top:84px;padding-bottom:88px;position:relative;z-index:1}
+        .pp-eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.28);color:#fde68a;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px}
+        .pp-hero-title{font-size:50px;line-height:1.12;color:#fff;margin:0 0 16px}
+        .pp-hero-title span{color:#fde68a}
+        .pp-hero-sub{font-size:16px;line-height:1.75;color:#d1fae5;max-width:640px;margin:0 0 28px}
+        .pp-hero-actions{display:flex;flex-wrap:wrap;gap:12px}
+        .pp-side-grid{display:grid;gap:16px}
+        .pp-side-card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:24px;padding:22px;color:#fff;backdrop-filter:blur(10px)}
+        .pp-side-card.light{background:#fff;color:#111827;border-color:#eef2f7;box-shadow:0 18px 40px rgba(15,23,42,.08)}
+        .pp-mini-label{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#bbf7d0}
+        .pp-side-card.light .pp-mini-label{color:#6b7280}
+        .pp-big{font-size:30px;font-weight:800;margin-top:8px;line-height:1.15}
+        .pp-muted{font-size:14px;line-height:1.7;color:#d1fae5;margin-top:8px}
+        .pp-side-card.light .pp-muted{color:#6b7280}
+        .pp-mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+        .pp-section{padding:72px 24px}
+        .pp-title{font-size:34px;line-height:1.2;color:#111827;margin:0 0 12px}
+        .pp-subtitle{color:#6b7280;line-height:1.8;max-width:760px;margin:0}
+        .pp-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:30px}
+        .pp-highlight{border:1px solid #eef2f7;border-radius:22px;padding:22px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.04)}
+        .pp-highlight-icon{width:46px;height:46px;border-radius:16px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px}
+        .pp-highlight h3{margin:0 0 8px;font-size:18px;color:#111827}
+        .pp-highlight p{margin:0;color:#6b7280;line-height:1.7;font-size:14px}
+        .pp-strip{background:#f8fafc;border-top:1px solid #eef2f7;border-bottom:1px solid #eef2f7}
+        .pp-points{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:30px}
+        .pp-point{background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:24px;box-shadow:0 12px 30px rgba(15,23,42,.05)}
+        .pp-point-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#f0fdf4;color:#166534;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;width:max-content}
+        .pp-point-title{font-size:20px;margin:14px 0 8px;color:#111827}
+        .pp-point-desc{margin:0;color:#6b7280;line-height:1.7;font-size:14px}
+        .pp-cta-box{margin-top:18px;display:flex;justify-content:flex-start}
+        .pp-faq-wrap{max-width:860px;margin-top:30px}
+        .pp-faq-item{border-bottom:1px solid #eef2f7}
+        .pp-faq-btn{list-style:none;width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;background:none;border:none;text-align:left;font-size:15px;font-weight:700;color:#111827;cursor:pointer}
+        .pp-faq-btn::-webkit-details-marker{display:none}
+        .pp-faq-chevron{font-size:18px;color:#9ca3af;transition:transform .2s}
+        .pp-faq-item[open] .pp-faq-chevron{transform:rotate(180deg)}
+        .pp-faq-body{margin:0 0 18px;color:#6b7280;line-height:1.8;font-size:14px}
+        .pp-footer{padding:24px;color:#6b7280;text-align:center;border-top:1px solid #f3f4f6;font-size:13px}
+        @media (max-width: 960px){
+          .pp-hero{grid-template-columns:1fr;gap:28px;padding-top:64px;padding-bottom:72px}
+          .pp-mini-grid,.pp-highlights,.pp-points{grid-template-columns:1fr}
+          .pp-hero-title{font-size:40px}
+        }
+        @media (max-width: 640px){
+          .pp-nav-inner,.pp-section,.pp-hero{padding-left:18px;padding-right:18px}
+          .pp-nav-actions .pp-link-btn{display:none}
+          .pp-hero-title{font-size:32px}
+          .pp-primary-btn,.pp-secondary-btn{width:100%;justify-content:center}
+        }
+      `}</style>
+
+      <div className="pp-root">
+        <div className="pp-nav">
+          <div className="pp-nav-inner">
+            <div className="pp-brand">
+              <div className="pp-brand-mark">P</div>
+              <div>
+                <div>Peken Banyumas</div>
+                <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Company Profile</div>
+              </div>
             </div>
+            <div className="pp-nav-actions">
+              <button className="pp-link-btn" onClick={() => jumpTo("tentang")}>Tentang</button>
+              <button className="pp-link-btn" onClick={() => jumpTo("fitur")}>Fitur</button>
+              <button className="pp-link-btn" onClick={() => jumpTo("faq")}>FAQ</button>
+              <button className="pp-primary-btn" onClick={openRegister}>Daftar UMKM</button>
+            </div>
+          </div>
         </div>
-    );
-};
 
-// ── Scroll helper ─────────────────────────────────────────────────────────────
-// href="#section" tidak bisa dipakai dengan HashRouter karena HashRouter
-// menginterpretasikan /#section sebagai route baru → redirect ke Dashboard.
-// Ganti dengan scrollIntoView via JS.
-
-const scrollTo = (id) => (e) => {
-    e.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-};
-
-// ── Halaman Utama ─────────────────────────────────────────────────────────────
-
-const Profile = () => {
-    return (
-        <>
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-                .pf-serif { font-family: 'Lora', Georgia, serif; }
-                .pf-sans  { font-family: 'Plus Jakarta Sans', sans-serif; }
-                @keyframes _fade-up {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to   { opacity: 1; transform: translateY(0); }
-                }
-                .fade-up  { animation: _fade-up 0.6s ease-out both; }
-                .delay-1  { animation-delay: 0.1s; }
-                .delay-2  { animation-delay: 0.2s; }
-                .delay-3  { animation-delay: 0.3s; }
-            `}</style>
-
-            <div className="pf-sans bg-white min-h-screen text-gray-800">
-
-                {/* ── NAVBAR ── */}
-                <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-100 shadow-sm">
-                    <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold text-base shadow">P</div>
-                            <span className="pf-serif font-bold text-gray-900 text-lg leading-none">Pekan Banyumasan</span>
-                        </div>
-                        <div className="flex items-center gap-2 md:gap-4">
-                            <a href="#acara"  onClick={scrollTo('acara')}  className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Acara</a>
-                            <a href="#member" onClick={scrollTo('member')} className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Member NFC</a>
-                            <a href="#faq"    onClick={scrollTo('faq')}    className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">FAQ</a>
-                            <a href="#kontak" onClick={scrollTo('kontak')} className="text-sm text-gray-500 hover:text-green-700 transition hidden md:block cursor-pointer">Kontak</a>
-                        </div>
-                    </div>
-                </nav>
-
-                {/* ── HERO ── */}
-                <section className="relative bg-green-800 overflow-hidden">
-                    <div
-                        className="absolute inset-0 opacity-[0.07] pointer-events-none"
-                        style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%23fff'%3E%3Ccircle cx='40' cy='40' r='3'/%3E%3Ccircle cx='0' cy='0' r='3'/%3E%3Ccircle cx='80' cy='0' r='3'/%3E%3Ccircle cx='0' cy='80' r='3'/%3E%3Ccircle cx='80' cy='80' r='3'/%3E%3Ccircle cx='40' cy='0' r='1.5'/%3E%3Ccircle cx='40' cy='80' r='1.5'/%3E%3Ccircle cx='0' cy='40' r='1.5'/%3E%3Ccircle cx='80' cy='40' r='1.5'/%3E%3C/g%3E%3C/svg%3E")`,
-                        }}
-                    />
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500 rounded-full opacity-10 blur-3xl -mr-60 -mt-40 pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-green-500 rounded-full opacity-10 blur-3xl -ml-32 -mb-16 pointer-events-none" />
-
-                    <div className="relative z-10 max-w-5xl mx-auto px-5 py-20 md:py-28">
-                        <div className="max-w-2xl fade-up">
-                            <div className="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold px-4 py-2 rounded-full mb-6 tracking-wide uppercase">
-                                <Star size={11} className="fill-current" /> Festival Budaya & UMKM Banyumas
-                            </div>
-                            <h1 className="pf-serif text-white text-4xl md:text-6xl font-bold leading-tight mb-5">
-                                Selamat Datang di<br />
-                                <span className="text-amber-300">Pekan Banyumasan</span>
-                            </h1>
-                            <p className="text-green-100 text-base md:text-lg leading-relaxed mb-8 max-w-xl">
-                                Festival tahunan yang merayakan kekayaan budaya, kuliner, dan produk UMKM kebanggaan masyarakat Banyumas. Gratis untuk semua pengunjung!
-                            </p>
-                            <div className="flex flex-wrap gap-3">
-                                <a
-                                    href="#member"
-                                    onClick={scrollTo('member')}
-                                    className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-900 font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-amber-900/20 text-sm"
-                                >
-                                    Daftar Member Gratis <ArrowRight size={16} />
-                                </a>
-                                <a
-                                    href="#acara"
-                                    onClick={scrollTo('acara')}
-                                    className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold px-6 py-3 rounded-xl transition text-sm"
-                                >
-                                    Lihat Acara
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="relative h-12 overflow-hidden">
-                        <svg viewBox="0 0 1200 50" preserveAspectRatio="none" className="absolute bottom-0 w-full h-full fill-white">
-                            <path d="M0,50 C300,0 900,50 1200,20 L1200,50 Z" />
-                        </svg>
-                    </div>
-                </section>
-
-                {/* ── INFO CEPAT ── */}
-                <section className="max-w-5xl mx-auto px-5 -mt-4 mb-16">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {[
-                            { icon: Calendar, label: 'Jadwal',   value: 'Lihat pengumuman resmi kami' },
-                            { icon: MapPin,   label: 'Lokasi',   value: 'Alun-alun Purwokerto & sekitarnya' },
-                            { icon: Clock,    label: 'Jam Buka', value: 'Pagi hingga malam hari' },
-                        ].map((item, i) => {
-                            const Icon = item.icon;
-                            return (
-                                <div key={i} className={`bg-white rounded-2xl shadow-md border border-stone-100 p-5 flex items-center gap-4 fade-up delay-${i + 1}`}>
-                                    <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
-                                        <Icon size={18} className="text-green-700" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">{item.label}</p>
-                                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{item.value}</p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </section>
-
-                {/* ── APA YANG ADA DI ACARA ── */}
-                <section id="acara" className="py-16 bg-stone-50 border-y border-stone-100">
-                    <div className="max-w-5xl mx-auto px-5">
-                        <div className="text-center mb-12">
-                            <p className="text-xs font-bold text-green-600 tracking-widest uppercase mb-2">Nikmati Berbagai Hiburan</p>
-                            <h2 className="pf-serif text-3xl md:text-4xl font-bold text-gray-900">Ada Apa di Pekan Banyumasan?</h2>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                            {HIGHLIGHTS.map((h, i) => {
-                                const Icon = h.icon;
-                                return (
-                                    <div key={i} className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm flex items-start gap-4 hover:shadow-md transition hover:border-green-100 group">
-                                        <div className="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-green-700 transition">
-                                            <Icon size={20} className="text-green-700 group-hover:text-white transition" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-gray-900 mb-1">{h.label}</h3>
-                                            <p className="text-sm text-gray-500 leading-relaxed">{h.desc}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── MEMBER NFC ── */}
-                <section id="member" className="py-20 max-w-5xl mx-auto px-5">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <p className="text-xs font-bold text-green-600 tracking-widest uppercase mb-3">Keychain NFC Member</p>
-                            <h2 className="pf-serif text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight">
-                                Belanja Lebih Hemat<br />dengan Jadi Member
-                            </h2>
-                            <p className="text-gray-500 leading-relaxed mb-6 text-sm md:text-base">
-                                Daftarkan diri Anda sebagai member Pekan Banyumasan dan dapatkan keychain NFC gratis. Cukup dekatkan ke alat di pintu masuk, sistem langsung mengenali Anda — tidak perlu antre, tidak perlu isi formulir berulang-ulang.
-                            </p>
-                            <ul className="space-y-3 mb-8">
-                                {MANFAAT_MEMBER.map((m, i) => (
-                                    <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
-                                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
-                                            <div className="w-2 h-2 rounded-full bg-green-600" />
-                                        </div>
-                                        {m}
-                                    </li>
-                                ))}
-                            </ul>
-                            <a
-                                href="#cara-daftar"
-                                onClick={scrollTo('cara-daftar')}
-                                className="inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white font-semibold px-6 py-3 rounded-xl transition shadow-md shadow-green-200 text-sm"
-                            >
-                                Cara Mendaftar <ArrowRight size={15} />
-                            </a>
-                        </div>
-
-                        <div className="relative">
-                            <div className="bg-gradient-to-br from-green-50 to-amber-50 rounded-3xl p-10 border border-green-100 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-40 h-40 bg-green-200 rounded-full opacity-30 -mr-10 -mt-10" />
-                                <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-200 rounded-full opacity-40 -ml-8 -mb-8" />
-                                <div className="relative z-10 flex flex-col items-center text-center">
-                                    <div className="w-20 h-20 bg-green-700 rounded-2xl shadow-xl shadow-green-300/50 flex items-center justify-center mb-5">
-                                        <Wifi size={36} className="text-white" />
-                                    </div>
-                                    <div className="pf-serif text-xl font-bold text-green-800 mb-1">Keychain NFC</div>
-                                    <div className="text-xs text-green-600 font-medium mb-6">Teknologi 13.56 MHz</div>
-                                    <div className="w-full space-y-3">
-                                        {[
-                                            { no: '1', text: 'Daftar di loket (gratis)' },
-                                            { no: '2', text: 'Terima keychain NFC Anda' },
-                                            { no: '3', text: 'Tap → langsung masuk & dapat diskon' },
-                                        ].map(s => (
-                                            <div key={s.no} className="flex items-center gap-3 bg-white/70 rounded-xl px-4 py-2.5 text-left">
-                                                <div className="w-6 h-6 bg-green-700 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">{s.no}</div>
-                                                <span className="text-sm text-gray-700 font-medium">{s.text}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="absolute -bottom-4 -right-4 bg-amber-400 rounded-2xl px-4 py-3 shadow-lg flex items-center gap-2">
-                                <Gift size={16} className="text-amber-900" />
-                                <div>
-                                    <div className="text-xs font-bold text-amber-900">Pendaftaran</div>
-                                    <div className="text-sm font-black text-amber-900">100% GRATIS</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── CARA DAFTAR ── */}
-                <section id="cara-daftar" className="py-16 bg-green-800 relative overflow-hidden">
-                    <div
-                        className="absolute inset-0 opacity-[0.06] pointer-events-none"
-                        style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%23fff'%3E%3Ccircle cx='40' cy='40' r='3'/%3E%3Ccircle cx='0' cy='0' r='3'/%3E%3Ccircle cx='80' cy='0' r='3'/%3E%3Ccircle cx='0' cy='80' r='3'/%3E%3Ccircle cx='80' cy='80' r='3'/%3E%3C/g%3E%3C/svg%3E")`,
-                        }}
-                    />
-                    <div className="relative z-10 max-w-5xl mx-auto px-5">
-                        <div className="text-center mb-12">
-                            <p className="text-xs font-bold text-amber-300 tracking-widest uppercase mb-2">Mudah & Cepat</p>
-                            <h2 className="pf-serif text-3xl font-bold text-white">Cara Daftar Member</h2>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {[
-                                { no: '01', title: 'Datang ke Loket',  desc: 'Cari loket pendaftaran member di dekat pintu masuk area event.' },
-                                { no: '02', title: 'Berikan Data Diri', desc: 'Cukup sebutkan nama lengkap dan nomor WhatsApp aktif Anda.' },
-                                { no: '03', title: 'Terima Keychain',   desc: 'Petugas mendaftarkan keychain NFC Anda ke sistem dalam hitungan detik.' },
-                                { no: '04', title: 'Langsung Nikmati', desc: 'Tap keychain di pintu masuk dan nikmati diskon di semua booth UMKM!' },
-                            ].map((s, i) => (
-                                <div key={i} className="bg-white/10 border border-white/15 rounded-2xl p-5 hover:bg-white/20 transition">
-                                    <div className="pf-serif text-4xl font-bold text-white/20 mb-3 leading-none">{s.no}</div>
-                                    <h3 className="font-bold text-white mb-2">{s.title}</h3>
-                                    <p className="text-green-200 text-sm leading-relaxed">{s.desc}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── SOCIAL PROOF ── */}
-                <section className="py-14 border-b border-stone-100">
-                    <div className="max-w-5xl mx-auto px-5">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                            {[
-                                { value: '500+',     label: 'Member Terdaftar' },
-                                { value: '40+',      label: 'Booth UMKM' },
-                                { value: 'Gratis',   label: 'Tiket Masuk' },
-                                { value: '< 2 detik', label: 'Proses Tap NFC' },
-                            ].map((s, i) => (
-                                <div key={i}>
-                                    <div className="pf-serif text-3xl md:text-4xl font-bold text-green-700 mb-1">{s.value}</div>
-                                    <div className="text-sm text-gray-500 font-medium">{s.label}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── FAQ ── */}
-                <section id="faq" className="py-20 max-w-3xl mx-auto px-5">
-                    <div className="text-center mb-12">
-                        <p className="text-xs font-bold text-green-600 tracking-widest uppercase mb-2">Pertanyaan Umum</p>
-                        <h2 className="pf-serif text-3xl md:text-4xl font-bold text-gray-900">Ada yang Ingin Ditanyakan?</h2>
-                    </div>
-                    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm divide-y divide-stone-200 px-6">
-                        {FAQ.map((item, i) => <FaqItem key={i} item={item} />)}
-                    </div>
-                </section>
-
-                {/* ── KONTAK ── */}
-                <section id="kontak" className="py-16 bg-stone-50 border-t border-stone-100">
-                    <div className="max-w-5xl mx-auto px-5">
-                        <div className="text-center mb-12">
-                            <p className="text-xs font-bold text-green-600 tracking-widest uppercase mb-2">Hubungi Kami</p>
-                            <h2 className="pf-serif text-3xl font-bold text-gray-900">Panitia Siap Membantu</h2>
-                            <p className="text-gray-500 mt-2 text-sm max-w-md mx-auto">
-                                Punya pertanyaan lebih lanjut tentang event atau pendaftaran member? Jangan ragu untuk menghubungi kami.
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-3xl mx-auto">
-                            {[
-                                { icon: MapPin, label: 'Lokasi Utama',     value: 'Alun-alun Purwokerto, Kab. Banyumas, Jawa Tengah' },
-                                { icon: Phone,  label: 'WhatsApp Panitia', value: '+62 812-3456-7890' },
-                                { icon: Mail,   label: 'Email',            value: 'panitia@pekenbanyumasan.id' },
-                            ].map((c, i) => {
-                                const Icon = c.icon;
-                                return (
-                                    <div key={i} className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm text-center hover:shadow-md hover:border-green-200 transition">
-                                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                            <Icon size={20} className="text-green-700" />
-                                        </div>
-                                        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">{c.label}</div>
-                                        <div className="text-gray-700 font-medium text-sm leading-relaxed">{c.value}</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── FOOTER ── */}
-                <footer className="bg-gray-900 text-gray-400 py-8">
-                    <div className="max-w-5xl mx-auto px-5 flex items-center justify-center text-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 bg-green-700 rounded-md flex items-center justify-center text-white font-bold text-sm">P</div>
-                            <span>&copy; 2026 Panitia Pekan Banyumasan. Hak cipta dilindungi.</span>
-                        </div>
-                    </div>
-                </footer>
+        <section className="pp-hero-wrap">
+          <div className="pp-hero">
+            <div>
+              <div className="pp-eyebrow">Portal Publik Peken Banyumasan</div>
+              <h1 className="pp-serif pp-hero-title">
+                Profil umum untuk <span>Peken Banyumasan</span>, bukan halaman dashboard.
+              </h1>
+              <p className="pp-hero-sub">
+                Halaman ini disederhanakan sebagai wajah publik Peken Banyumasan. Fokusnya menjelaskan identitas event,
+                integrasi Gate dan UMKM, manfaat member NFC, serta menyediakan satu jalur aksi yang jelas untuk
+                pendaftaran tenant UMKM.
+              </p>
+              <div className="pp-hero-actions">
+                <button className="pp-primary-btn" onClick={openRegister}>Daftar UMKM</button>
+                <button className="pp-secondary-btn" onClick={() => jumpTo("fitur")}>Lihat Ekosistem</button>
+              </div>
             </div>
-        </>
-    );
-};
 
-export default Profile;
+            <div className="pp-side-grid">
+              <div className="pp-side-card">
+                <div className="pp-mini-label">Hari Ini</div>
+                <div className="pp-big">{todayLabel}</div>
+                <div className="pp-muted">Informasi publik ditata agar rapi dan tidak saling bertumpuk seperti versi sebelumnya.</div>
+              </div>
+              <div className="pp-mini-grid">
+                <div className="pp-side-card light">
+                  <div className="pp-mini-label">Identitas</div>
+                  <div className="pp-big" style={{ fontSize: 26 }}>Publik & Umum</div>
+                  <div className="pp-muted">Tidak menampilkan jalur login dashboard pada company profile.</div>
+                </div>
+                <div className="pp-side-card light">
+                  <div className="pp-mini-label">Integrasi</div>
+                  <div className="pp-big" style={{ fontSize: 26 }}>Gate + UMKM</div>
+                  <div className="pp-muted">Ekosistem event, tenant, promo, dan member NFC tetap terhubung.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="pp-section" id="tentang">
+          <h2 className="pp-serif pp-title">Satu profil untuk keseluruhan Peken Banyumasan</h2>
+          <p className="pp-subtitle">
+            Company profile ini diposisikan sebagai halaman publik utama. Jalur yang terasa janggal seperti masuk ke dashboard
+            atau melihat status pendaftaran dari halaman profil sengaja dihilangkan agar konteks halaman tetap bersih dan tepat.
+          </p>
+        </section>
+
+        <section className="pp-section" id="fitur">
+          <h2 className="pp-serif pp-title">Elemen inti ekosistem</h2>
+          <p className="pp-subtitle">
+            Isi halaman difokuskan pada hal-hal yang memang relevan untuk publik dan calon tenant, tanpa menumpuk kartu informasi yang saling bertabrakan.
+          </p>
+          <div className="pp-highlights">
+            {HIGHLIGHTS.map((item) => (
+              <div key={item.title} className="pp-highlight">
+                <div className="pp-highlight-icon">{item.icon}</div>
+                <h3>{item.title}</h3>
+                <p>{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="pp-section pp-strip">
+          <h2 className="pp-serif pp-title">Apa yang dilakukan halaman ini</h2>
+          <p className="pp-subtitle">
+            Halaman publik cukup memberi arah, bukan menjadi tempat menjalankan semua alur internal sekaligus.
+          </p>
+          <div className="pp-points">
+            <div className="pp-point">
+              <div className="pp-point-badge">Untuk Publik</div>
+              <h3 className="pp-point-title">Menjelaskan identitas event</h3>
+              <p className="pp-point-desc">Pengunjung memahami bahwa Peken Banyumasan adalah event publik yang menghubungkan aktivitas budaya, tenant, dan pengalaman digital.</p>
+            </div>
+            <div className="pp-point">
+              <div className="pp-point-badge">Untuk Tenant</div>
+              <h3 className="pp-point-title">Memberi satu jalur aksi</h3>
+              <p className="pp-point-desc">Pelaku usaha diarahkan langsung ke formulir pendaftaran UMKM tanpa dibingungkan tombol dashboard atau status yang kurang tepat konteksnya.</p>
+              <div className="pp-cta-box">
+                <button className="pp-primary-btn" onClick={openRegister}>Daftar UMKM</button>
+              </div>
+            </div>
+            <div className="pp-point">
+              <div className="pp-point-badge">Untuk Sistem</div>
+              <h3 className="pp-point-title">Menjaga narasi tetap konsisten</h3>
+              <p className="pp-point-desc">Gate dan UMKM tetap terhubung di balik layar, tetapi tampilan publik dijaga tetap sederhana, jelas, dan profesional.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="pp-section" id="faq">
+          <h2 className="pp-serif pp-title">Pertanyaan yang sering muncul</h2>
+          <p className="pp-subtitle">Ringkasan ini membantu pengunjung dan calon tenant memahami fungsi halaman tanpa banyak kebingungan.</p>
+          <div className="pp-faq-wrap">
+            {FAQ.map((item) => <FaqItem key={item.q} item={item} />)}
+          </div>
+        </section>
+
+        <div className="pp-footer">
+          Peken Banyumas · Company profile publik yang diselaraskan untuk ekosistem Gate, tenant UMKM, dan member NFC.
+        </div>
+      </div>
+    </>
+  );
+}

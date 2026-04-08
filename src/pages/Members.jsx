@@ -195,7 +195,7 @@ const MemberDrawer = ({
                         </div>
                         {isScanning && (
                             <p className="mt-1.5 text-xs text-green-600 font-medium">
-                                💡 Reader aktif — tempelkan NFC Tag ke R20C-USB sekarang
+                                💡 Reader aktif — tempelkan NFC Tag ke NFC Scanner sekarang
                             </p>
                         )}
                         {!isScanning && formData.nfc_uid && (
