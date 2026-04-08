@@ -1,5 +1,11 @@
 // src/pages/Members.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// CHANGELOG:
+// [FIX-NFC] handleScanNFC sekarang menggunakan hidden input keyboard-emulator
+//   (sama seperti Monitor.jsx) — bukan lagi random hex mock.
+//   R20C-USB mengetik UID desimal lalu kirim Enter → ditangkap di hidden input.
+//   Klik tombol "Scan" → hidden input auto-focus → tunggu NFC tap.
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     UserPlus, Wifi, Search,
     Edit, Ban, CheckCircle, Loader2, X
@@ -7,8 +13,6 @@ import {
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
-
-// ── Nilai awal form ───────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
     id: null,
@@ -25,10 +29,11 @@ const EMPTY_FORM = {
 const MemberDrawer = ({
                           isOpen, isEditMode, formData,
                           isSubmitting, isScanning,
-                          onClose, onChange, onScan, onSubmit,
+                          nfcInputRef,
+                          onClose, onChange, onScanStart, onSubmit,
+                          onNfcInputChange, onNfcInputKeyDown,
                       }) => (
     <>
-        {/* Keyframe slide-in/out */}
         <style>{`
             @keyframes _drawer_in {
                 from { transform: translateX(100%); opacity: 0.6; }
@@ -37,7 +42,6 @@ const MemberDrawer = ({
             .drawer-in { animation: _drawer_in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both; }
         `}</style>
 
-        {/* Backdrop */}
         {isOpen && (
             <div
                 className="fixed inset-0 bg-slate-900/30 backdrop-blur-[2px] z-40"
@@ -45,7 +49,6 @@ const MemberDrawer = ({
             />
         )}
 
-        {/* Panel */}
         <div
             className={`
                 fixed top-0 right-0 h-full w-full sm:w-[420px]
@@ -54,6 +57,21 @@ const MemberDrawer = ({
                 ${isOpen ? 'translate-x-0 drawer-in' : 'translate-x-full'}
             `}
         >
+            {/* Hidden NFC input — selalu di sini agar tangkap keyboard emulator saat scanning */}
+            <input
+                ref={nfcInputRef}
+                type="text"
+                style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
+                value=""
+                onChange={onNfcInputChange}
+                onKeyDown={onNfcInputKeyDown}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
+                tabIndex={-1}
+                aria-hidden="true"
+            />
+
             {/* Header */}
             <div className={`flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0
                 ${isEditMode ? 'bg-amber-50' : 'bg-gray-50'}`}>
@@ -80,7 +98,7 @@ const MemberDrawer = ({
                 </button>
             </div>
 
-            {/* Body — scrollable */}
+            {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-6">
                 <form id="member-form" className="space-y-5" onSubmit={onSubmit}>
 
@@ -120,7 +138,6 @@ const MemberDrawer = ({
                         />
                     </div>
 
-                    {/* Status — required di CreateMemberRequest */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                             Status <span className="text-red-500">*</span>
@@ -135,7 +152,6 @@ const MemberDrawer = ({
                         </select>
                     </div>
 
-                    {/* Tanggal daftar — required di CreateMemberRequest */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                             Tanggal Daftar <span className="text-red-500">*</span>
@@ -154,26 +170,45 @@ const MemberDrawer = ({
                         </label>
                         <div className="flex gap-2">
                             <input
-                                type="text" readOnly required
+                                type="text"
+                                readOnly
+                                required
                                 value={formData.nfc_uid}
-                                placeholder={isScanning ? 'Menunggu tap NFC...' : 'Scan NFC untuk mengisi...'}
-                                className={`w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl font-mono text-sm cursor-not-allowed
-                                    ${isScanning ? 'text-green-600 animate-pulse' : 'text-gray-600'}`}
+                                placeholder={isScanning ? 'Menunggu tap NFC — tempelkan kartu...' : 'Klik Scan lalu tap kartu NFC'}
+                                className={`w-full px-4 py-2.5 bg-gray-100 border rounded-xl font-mono text-sm cursor-not-allowed transition
+                                    ${isScanning
+                                    ? 'border-green-400 text-green-700 animate-pulse'
+                                    : formData.nfc_uid
+                                        ? 'border-green-300 text-gray-700'
+                                        : 'border-gray-200 text-gray-400'
+                                }`}
                             />
                             <button
-                                type="button" onClick={onScan} disabled={isScanning}
+                                type="button"
+                                onClick={onScanStart}
+                                disabled={isScanning}
                                 className="bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white px-4 py-2.5 rounded-xl transition flex items-center gap-2 font-medium text-sm whitespace-nowrap shadow-sm shadow-green-200"
                             >
                                 {isScanning ? <Loader2 size={16} className="animate-spin" /> : <Wifi size={16} />}
-                                Scan
+                                {isScanning ? 'Menunggu...' : 'Scan'}
                             </button>
                         </div>
+                        {isScanning && (
+                            <p className="mt-1.5 text-xs text-green-600 font-medium">
+                                💡 Reader aktif — tempelkan NFC Tag ke R20C-USB sekarang
+                            </p>
+                        )}
+                        {!isScanning && formData.nfc_uid && (
+                            <p className="mt-1.5 text-xs text-gray-400">
+                                UID tersimpan. Klik Scan lagi untuk scan ulang.
+                            </p>
+                        )}
                     </div>
 
                 </form>
             </div>
 
-            {/* Footer — sticky */}
+            {/* Footer */}
             <div className="px-6 py-4 border-t border-gray-100 bg-white shrink-0 flex gap-3">
                 <button
                     type="button" onClick={onClose} disabled={isSubmitting}
@@ -206,7 +241,7 @@ const Members = () => {
     const [members, setMembers]               = useState([]);
     const [isLoadingMembers, setIsLoading]    = useState(true);
     const [searchQuery, setSearchQuery]       = useState('');
-    const [statusFilter, setStatusFilter]     = useState('semua'); // 'semua' | 'aktif' | 'nonaktif'
+    const [statusFilter, setStatusFilter]     = useState('semua');
     const [currentPage, setCurrentPage]       = useState(1);
     const itemsPerPage                        = 10;
 
@@ -215,16 +250,18 @@ const Members = () => {
     const [formData, setFormData]             = useState(EMPTY_FORM);
     const [isSubmitting, setIsSubmitting]     = useState(false);
     const [isScanning, setIsScanning]         = useState(false);
+    const [nfcBuffer, setNfcBuffer]           = useState('');
 
     const [confirmToggle, setConfirmToggle]   = useState({ open: false, member: null });
+
+    // Ref ke hidden NFC input di dalam Drawer
+    const nfcInputRef = useRef(null);
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
 
     const fetchMembers = useCallback(async () => {
         try {
             setIsLoading(true);
-            // Kirim search ke API, status difilter client-side
-            // supaya count per tab selalu tersedia tanpa extra request
             const res = await api.get('/members', { params: { search: searchQuery } });
             setMembers(res.data.data || []);
             setCurrentPage(1);
@@ -243,11 +280,12 @@ const Members = () => {
     // ── Drawer helpers ────────────────────────────────────────────────────────
 
     const openAddDrawer = () => {
-        // Gunakan local date bukan UTC agar tanggal default sesuai WIB
         const d = new Date();
         const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         setFormData({ ...EMPTY_FORM, tanggal_daftar: todayLocal });
         setIsEditMode(false);
+        setIsScanning(false);
+        setNfcBuffer('');
         setIsDrawerOpen(true);
     };
 
@@ -262,11 +300,15 @@ const Members = () => {
             tanggal_daftar: member.tanggal_daftar,
         });
         setIsEditMode(true);
+        setIsScanning(false);
+        setNfcBuffer('');
         setIsDrawerOpen(true);
     };
 
     const closeDrawer = () => {
         if (isSubmitting) return;
+        setIsScanning(false);
+        setNfcBuffer('');
         setIsDrawerOpen(false);
     };
 
@@ -275,16 +317,37 @@ const Members = () => {
     const handleInputChange = (e) =>
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-    const handleScanNFC = () => {
+    // Mulai mode scan: aktifkan isScanning dan fokus hidden NFC input
+    const handleScanStart = () => {
         setIsScanning(true);
-        setTimeout(() => {
-            const uid = Array.from({ length: 7 }, () =>
-                Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0')
-            ).join(':');
-            setFormData(prev => ({ ...prev, nfc_uid: uid }));
-            setIsScanning(false);
-        }, 2000);
+        setNfcBuffer('');
+        // Fokus hidden input agar keyboard emulator R20C-USB langsung masuk
+        setTimeout(() => nfcInputRef.current?.focus(), 50);
     };
+
+    // onChange pada hidden NFC input — akumulasi karakter dari reader
+    const handleNfcInputChange = useCallback((e) => {
+        // R20C-USB "mengetik" satu karakter per event — tidak ada value bawaan
+        // Gunakan e.nativeEvent.data untuk karakter yang baru diketik
+        const char = e.nativeEvent?.data || '';
+        if (char) setNfcBuffer(prev => prev + char);
+    }, []);
+
+    // onKeyDown pada hidden NFC input — Enter = selesai, ambil buffer
+    const handleNfcInputKeyDown = useCallback((e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const scanned = nfcBuffer.trim();
+            setNfcBuffer('');
+            setIsScanning(false);
+            if (scanned) {
+                setFormData(prev => ({ ...prev, nfc_uid: scanned }));
+                toast.success(`UID berhasil ditangkap: ${scanned}`);
+            } else {
+                toast.warning('Tidak ada data dari NFC reader. Coba lagi.');
+            }
+        }
+    }, [nfcBuffer, toast]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -294,7 +357,7 @@ const Members = () => {
         }
         try {
             setIsSubmitting(true);
-            const { id, ...payload } = formData; // id di path, bukan di body
+            const { id, ...payload } = formData;
             if (isEditMode) {
                 await api.put(`/members/${id}`, payload);
                 toast.success('Data member berhasil diperbarui!');
@@ -334,11 +397,9 @@ const Members = () => {
 
     // ── Filter & Pagination ───────────────────────────────────────────────────
 
-    // Count untuk badge tab — selalu dari data mentah tanpa filter status
     const countAktif    = members.filter(m => m.status === 'aktif').length;
     const countNonaktif = members.filter(m => m.status === 'nonaktif').length;
 
-    // Filter client-side berdasarkan tab aktif
     const filteredMembers = statusFilter === 'semua'
         ? members
         : members.filter(m => m.status === statusFilter);
@@ -355,7 +416,6 @@ const Members = () => {
     return (
         <div className="font-sans">
 
-            {/* ConfirmDialog toggle status */}
             <ConfirmDialog
                 isOpen={confirmToggle.open}
                 title="Ubah Status Member"
@@ -366,20 +426,21 @@ const Members = () => {
                 onCancel={() => setConfirmToggle({ open: false, member: null })}
             />
 
-            {/* Drawer */}
             <MemberDrawer
                 isOpen={isDrawerOpen}
                 isEditMode={isEditMode}
                 formData={formData}
                 isSubmitting={isSubmitting}
                 isScanning={isScanning}
+                nfcInputRef={nfcInputRef}
                 onClose={closeDrawer}
                 onChange={handleInputChange}
-                onScan={handleScanNFC}
+                onScanStart={handleScanStart}
                 onSubmit={handleSubmit}
+                onNfcInputChange={handleNfcInputChange}
+                onNfcInputKeyDown={handleNfcInputKeyDown}
             />
 
-            {/* ── Tabel — selalu full-width ──────────────────────────────────── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
 
                 {/* Toolbar */}
@@ -524,9 +585,7 @@ const Members = () => {
                         <span>
                             Menampilkan {indexOfFirst + 1}–{Math.min(indexOfLast, filteredMembers.length)} dari {filteredMembers.length} member
                             {statusFilter !== 'semua' && (
-                                <span className="ml-1 text-gray-400">
-                                    ({statusFilter})
-                                </span>
+                                <span className="ml-1 text-gray-400">({statusFilter})</span>
                             )}
                         </span>
                         {totalPages > 1 && (
@@ -538,8 +597,6 @@ const Members = () => {
                                 >
                                     &laquo; Prev
                                 </button>
-
-                                {/* Windowed page numbers — max 5 di sekitar halaman aktif */}
                                 {(() => {
                                     const delta = 2;
                                     const pages = [];
@@ -548,7 +605,6 @@ const Members = () => {
                                         i <= Math.min(totalPages, currentPage + delta);
                                         i++
                                     ) pages.push(i);
-
                                     return (
                                         <>
                                             {pages[0] > 1 && (
@@ -579,7 +635,6 @@ const Members = () => {
                                         </>
                                     );
                                 })()}
-
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
                                     disabled={currentPage === totalPages}
