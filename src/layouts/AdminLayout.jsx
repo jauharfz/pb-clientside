@@ -4,7 +4,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     PieChart, Users, Store, FileText, LogOut,
     User, Menu, X, ShieldCheck, UserCog,
-    Calendar, Monitor, BookOpen
+    Calendar, Monitor, BookOpen, SettingsIcon
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -90,6 +90,7 @@ const AdminLayout = () => {
     const externalLinks = [
         { path: '/monitor', label: 'Display Monitor', icon: Monitor },
         { path: '/profile', label: 'Company Profile', icon: BookOpen },
+        { path: '/settings', label: 'Settings', icon: SettingsIcon }
     ];
 
     const getPageInfo = () => {

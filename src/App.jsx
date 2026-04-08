@@ -10,6 +10,7 @@ import Reports from './pages/Reports';
 import Events from './pages/Events';
 import Monitor from './pages/Monitor';
 import Profile from './pages/Profile';
+import Settings from "./pages/Settings";
 import { ToastProvider } from './components/Toast';
 
 // Helper: ambil data user dari localStorage
@@ -144,6 +145,7 @@ function App() {
                             }
                         />
                     </Route>
+                    <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
                     {/* Catch-all: redirect path tidak dikenal ke Dashboard */}
                     <Route path="*" element={<Navigate to="/" replace />} />
