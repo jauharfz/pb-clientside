@@ -1,13 +1,22 @@
 // src/pages/Dashboard.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// CHANGELOG:
+// [REALTIME] Ganti setInterval polling (10s) dengan Supabase Realtime subscription.
+//   - Subscribe ke tabel kunjungan (postgres_changes) via @supabase/supabase-js
+//   - Fallback ke polling 30s jika env vars VITE_SUPABASE_* belum dikonfigurasi
+//   - Indikator koneksi Realtime ditampilkan di header tabel aktivitas
+//   - Setup: tambahkan VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY ke .env / Vercel
+//   - DB: ALTER PUBLICATION supabase_realtime ADD TABLE kunjungan; (wajib sekali)
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Users, LogIn, LogOut, CalendarCheck,
     ArrowDownCircle, ArrowUpCircle, RefreshCw,
-    CreditCard, User, AlertCircle, Calendar, ArrowRight
+    CreditCard, User, AlertCircle, Calendar, ArrowRight,
+    Wifi, WifiOff,
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+import { supabaseRealtime } from '../lib/supabase';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -21,24 +30,29 @@ const Dashboard = () => {
     });
     const [activities, setActivities] = useState([]);
 
-    // event_id aktif dari response /dashboard/stats.
-    // Wajib dikirim ke POST /visitors/manual (OpenAPI ManualVisitorRequest required field).
     const [activeEventId, setActiveEventId] = useState(null);
     const [namaEvent, setNamaEvent]         = useState(null);
 
     const [isLoadingStats, setIsLoadingStats]           = useState(true);
     const [isLoadingActivities, setIsLoadingActivities] = useState(true);
     const [submittingAction, setSubmittingAction]       = useState(null);
-    // Increment on every background refresh to trigger re-mount of animated elements
     const [flashKey, setFlashKey]                       = useState(0);
 
-    // Ambil role user untuk menampilkan link "Kelola Event" hanya kepada admin
+    // Status koneksi Realtime — untuk indikator UI
+    const [realtimeStatus, setRealtimeStatus] = useState(
+        supabaseRealtime ? 'connecting' : 'disabled'
+    );
+    // Simpan event_id di ref agar subscription callback bisa akses tanpa stale closure
+    const activeEventIdRef = useRef(null);
+
     const userRole = (() => {
         try {
             const u = localStorage.getItem('user');
             return u ? JSON.parse(u).role : null;
         } catch { return null; }
     })();
+
+    // ── Data fetchers ─────────────────────────────────────────────────────────
 
     const fetchStats = useCallback(async (silent = false) => {
         try {
@@ -48,17 +62,16 @@ const Dashboard = () => {
             setStats(data);
             if (data?.event_id) {
                 setActiveEventId(data.event_id);
+                activeEventIdRef.current = data.event_id;
                 setNamaEvent(data.nama_event || null);
-                // Sync event info to AdminLayout via localStorage + CustomEvent
-                // (storage event only fires cross-tab; CustomEvent works same-window)
                 localStorage.setItem('pekan_active_event', JSON.stringify({ id: data.event_id, nama: data.nama_event || null }));
             } else {
                 setActiveEventId(null);
+                activeEventIdRef.current = null;
                 setNamaEvent(null);
                 localStorage.removeItem('pekan_active_event');
             }
             window.dispatchEvent(new CustomEvent('pekan_event_update'));
-            // Trigger flash animation on background refresh (not initial load)
             if (silent) setFlashKey(k => k + 1);
         } catch (error) {
             console.error('Gagal mengambil statistik:', error);
@@ -70,16 +83,12 @@ const Dashboard = () => {
     const fetchActivities = useCallback(async (silent = false) => {
         try {
             if (!silent) setIsLoadingActivities(true);
-            // Gunakan local date bukan UTC agar sesuai dengan timezone WIB pengguna
             const d = new Date();
             const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            // Filter by event_id jika tersedia agar tidak mencampur data lintas event
-            // pada hari yang sama. Jika belum ada event aktif, tetap fetch by tanggal.
             const params = { tanggal: today };
-            if (activeEventId) params.event_id = activeEventId;
+            if (activeEventIdRef.current) params.event_id = activeEventIdRef.current;
             const response = await api.get('/visitors', { params });
             const allVisits = response.data.data || [];
-            // Sort by most recent activity: keluar → waktu_keluar, di_dalam → waktu_masuk
             const actTime = (v) =>
                 v.status === 'keluar' && v.waktu_keluar
                     ? new Date(v.waktu_keluar)
@@ -91,18 +100,72 @@ const Dashboard = () => {
         } finally {
             if (!silent) setIsLoadingActivities(false);
         }
-    }, [activeEventId]);
+    }, []);
+
+    // ── Realtime + fallback polling ───────────────────────────────────────────
 
     useEffect(() => {
+        // Initial load
         fetchStats();
         fetchActivities();
 
-        const interval = setInterval(() => {
-            fetchStats(true);
-            fetchActivities(true);
-        }, 10000);
-        return () => clearInterval(interval);
-    }, [fetchStats, fetchActivities]);
+        let channel = null;
+        let fallbackInterval = null;
+
+        if (supabaseRealtime) {
+            // ── Mode Realtime ──────────────────────────────────────────────────
+            // Subscribe ke semua perubahan tabel kunjungan.
+            // Setiap INSERT/UPDATE trigger refresh stats + activities.
+            channel = supabaseRealtime
+                .channel('dashboard-kunjungan')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'kunjungan' },
+                    (_payload) => {
+                        fetchStats(true);
+                        fetchActivities(true);
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        setRealtimeStatus('connected');
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        setRealtimeStatus('error');
+                        // Fallback ke polling saat Realtime error
+                        if (!fallbackInterval) {
+                            fallbackInterval = setInterval(() => {
+                                fetchStats(true);
+                                fetchActivities(true);
+                            }, 15000);
+                        }
+                    } else if (status === 'CLOSED') {
+                        setRealtimeStatus('disabled');
+                    }
+                });
+
+        } else {
+            // ── Mode Fallback Polling ─────────────────────────────────────────
+            // VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum dikonfigurasi.
+            // Gunakan polling 30s sebagai pengganti.
+            fallbackInterval = setInterval(() => {
+                fetchStats(true);
+                fetchActivities(true);
+            }, 30000);
+        }
+
+        return () => {
+            if (channel) supabaseRealtime.removeChannel(channel);
+            if (fallbackInterval) clearInterval(fallbackInterval);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Re-fetch activities saat activeEventId berubah (untuk filter event_id)
+    useEffect(() => {
+        if (activeEventId) fetchActivities(true);
+    }, [activeEventId, fetchActivities]);
+
+    // ── Manual input handler ──────────────────────────────────────────────────
 
     const handleManualInput = async (aksi) => {
         if (!activeEventId) {
@@ -113,8 +176,11 @@ const Dashboard = () => {
             setSubmittingAction(aksi);
             await api.post('/visitors/manual', { aksi, event_id: activeEventId });
             toast.success(`Pengunjung ${aksi === 'masuk' ? 'masuk' : 'keluar'} berhasil dicatat.`);
-            fetchStats();
-            fetchActivities();
+            // Jika tidak ada Realtime, manual refresh setelah aksi
+            if (!supabaseRealtime || realtimeStatus !== 'connected') {
+                fetchStats();
+                fetchActivities();
+            }
         } catch (error) {
             toast.error(`Gagal mencatat pengunjung ${aksi}: ${error.message || 'Silakan coba lagi.'}`);
             console.error(error);
@@ -124,18 +190,41 @@ const Dashboard = () => {
     };
 
     const getActivityTime = (act) => {
-        if (act.status === 'keluar' && act.waktu_keluar) {
-            return new Date(act.waktu_keluar);
-        }
+        if (act.status === 'keluar' && act.waktu_keluar) return new Date(act.waktu_keluar);
         return new Date(act.waktu_masuk);
     };
 
-// Tombol MASUK/KELUAR di-disable selama: ada aksi berjalan ATAU event_id belum tersedia
     const isManualButtonDisabled = submittingAction !== null || !activeEventId;
+
+    // ── Realtime status badge ─────────────────────────────────────────────────
+    const RealtimeBadge = () => {
+        if (realtimeStatus === 'connected') return (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                <Wifi size={11} className="animate-pulse" /> Realtime
+            </span>
+        );
+        if (realtimeStatus === 'connecting') return (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                <RefreshCw size={11} className="animate-spin" /> Connecting…
+            </span>
+        );
+        if (realtimeStatus === 'error') return (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                <WifiOff size={11} /> Polling 15s
+            </span>
+        );
+        // disabled — env vars tidak ada
+        return (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                <RefreshCw size={11} /> Polling 30s
+            </span>
+        );
+    };
+
+    // ── Render ────────────────────────────────────────────────────────────────
 
     return (
         <div className="space-y-8 font-sans">
-            {/* Keyframes untuk flash animation saat background refresh */}
             <style>{`
             @keyframes value-flash {
                 0%   { background-color: transparent; }
@@ -151,19 +240,16 @@ const Dashboard = () => {
             .row-flash   { animation: row-flash   0.75s ease-out; }
         `}</style>
 
-            {/* ── BANNER: tidak ada event aktif ──────────────────────────────── */}
+            {/* ── BANNER: tidak ada event aktif ─────────────────────────── */}
             {!isLoadingStats && !activeEventId && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                     <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-amber-800">
-                            Tidak ada event aktif
-                        </p>
+                        <p className="text-sm font-bold text-amber-800">Tidak ada event aktif</p>
                         <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                            Tombol input manual dinonaktifkan. Tap NFC dari perangkat reader juga tidak akan diterima sistem sampai ada event yang aktif.
+                            Tombol input manual dinonaktifkan. Tap NFC juga tidak akan diterima sampai ada event aktif.
                         </p>
                     </div>
-                    {/* Hanya tampilkan shortcut ke /events jika role admin */}
                     {userRole === 'admin' && (
                         <Link
                             to="/events"
@@ -175,10 +261,9 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* ── 4 STATISTIC CARDS ─────────────────────────────────────────── */}
+            {/* ── 4 STATISTIC CARDS ────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-                {/* Card 1: Sedang di Dalam */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
                     <div className="flex justify-between items-start mb-4 relative z-10">
@@ -195,7 +280,6 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Card 2: Total Masuk */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-start mb-4">
                         <div className="text-gray-500 text-sm font-medium">Total Tap Masuk</div>
@@ -209,7 +293,6 @@ const Dashboard = () => {
                     <div className="text-xs text-gray-400">Pengunjung hari ini</div>
                 </div>
 
-                {/* Card 3: Total Keluar */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-start mb-4">
                         <div className="text-gray-500 text-sm font-medium">Total Tap Keluar</div>
@@ -223,7 +306,6 @@ const Dashboard = () => {
                     <div className="text-xs text-gray-400">Pengunjung hari ini</div>
                 </div>
 
-                {/* Card 4: Total Harian */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-start mb-4">
                         <div className="text-gray-500 text-sm font-medium">Total Kunjungan Hari Ini</div>
@@ -238,7 +320,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* ── MAIN ACTION AREA ───────────────────────────────────────────── */}
+            {/* ── MAIN ACTION AREA ─────────────────────────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                 {/* KIRI: Tombol Input Manual */}
@@ -248,7 +330,6 @@ const Dashboard = () => {
                         <p className="text-sm text-gray-500 mb-6">
                             Gunakan tombol ini jika pengunjung tidak memiliki keychain NFC (Non-Member).
                         </p>
-
                         <div className="space-y-4">
                             <button
                                 onClick={() => handleManualInput('masuk')}
@@ -289,7 +370,10 @@ const Dashboard = () => {
                 <div className="lg:col-span-2">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col">
                         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                            <h3 className="text-lg font-bold text-gray-800">Aktivitas Tap & Input Terbaru</h3>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-lg font-bold text-gray-800">Aktivitas Tap & Input Terbaru</h3>
+                                <RealtimeBadge />
+                            </div>
                             <button
                                 onClick={() => { fetchStats(); fetchActivities(); }}
                                 className="text-sm text-green-700 font-medium hover:underline flex items-center gap-1"
@@ -303,24 +387,16 @@ const Dashboard = () => {
                                 <thead>
                                 <tr className="bg-white text-gray-400 text-xs uppercase tracking-wider border-b border-gray-100">
                                     <th className="px-6 py-4 font-semibold">Waktu</th>
-                                    <th className="px-6 py-4 font-semibold">Tipe Pengunjung</th>
+                                    <th className="px-6 py-4 font-semibold">Tipe</th>
                                     <th className="px-6 py-4 font-semibold">Identitas</th>
                                     <th className="px-6 py-4 font-semibold">Aktivitas</th>
                                 </tr>
                                 </thead>
                                 <tbody className="text-sm divide-y divide-gray-50">
                                 {isLoadingActivities ? (
-                                    <tr>
-                                        <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
-                                            Memuat data aktivitas...
-                                        </td>
-                                    </tr>
+                                    <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">Memuat data aktivitas...</td></tr>
                                 ) : activities.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
-                                            Belum ada aktivitas hari ini.
-                                        </td>
-                                    </tr>
+                                    <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500">Belum ada aktivitas hari ini.</td></tr>
                                 ) : (
                                     activities.map((act) => (
                                         <tr key={`${act.id}-${flashKey}`} className="hover:bg-gray-50 transition row-flash">
@@ -385,7 +461,6 @@ const Dashboard = () => {
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
     );

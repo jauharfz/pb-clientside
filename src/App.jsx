@@ -10,53 +10,32 @@ import Reports from './pages/Reports';
 import Events from './pages/Events';
 import Monitor from './pages/Monitor';
 import Profile from './pages/Profile';
-import AccountSettings from './pages/AccountSettings';
+import Settings from './pages/Settings';   // ← NEW
 import { ToastProvider } from './components/Toast';
 
-// Helper: ambil data user dari localStorage
 const getStoredUser = () => {
     try {
         const stored = localStorage.getItem('user');
         return stored ? JSON.parse(stored) : null;
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 };
 
-/**
- * PrivateRoute — Proteksi umum: harus sudah login (ada token).
- * Jika belum login, redirect ke /login.
- */
+/** PrivateRoute — harus sudah login */
 const PrivateRoute = ({ children }) => {
     const isAuthenticated = !!localStorage.getItem('token');
     return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
-/**
- * AdminRoute — Proteksi berlapis: harus login DAN role harus 'admin'.
- * OpenAPI AdminUser.role enum: ['admin', 'petugas']
- * Endpoint yang hanya boleh diakses admin:
- *   - GET /members, POST /members, PUT /members/:id  → /members
- *   - GET /umkm                                      → /tenants
- *   - GET /reports, GET /reports/export              → /reports
- *   - GET /events, POST /events, PATCH /events/:id   → /events
- *
- * Jika bukan admin, redirect ke '/' (Dashboard).
- */
+/** AdminRoute — harus login DAN role = admin */
 const AdminRoute = ({ children }) => {
     const isAuthenticated = !!localStorage.getItem('token');
     if (!isAuthenticated) return <Navigate to="/login" replace />;
-
     const user = getStoredUser();
     if (user?.role !== 'admin') return <Navigate to="/" replace />;
-
     return children;
 };
 
-/**
- * PublicOnlyRoute — Jika sudah login dan mencoba buka /login,
- * redirect langsung ke Dashboard.
- */
+/** PublicOnlyRoute — redirect ke Dashboard jika sudah login */
 const PublicOnlyRoute = ({ children }) => {
     const isAuthenticated = !!localStorage.getItem('token');
     return isAuthenticated ? <Navigate to="/" replace /> : children;
@@ -68,23 +47,11 @@ function App() {
             <Router>
                 <Routes>
 
-                    {/* ── PUBLIC ROUTES — tidak memerlukan login ──────────────── */}
-
-                    {/*
-                     * /profile — Company profile statis (REQ-PROFILE-001).
-                     * Tidak memerlukan autentikasi, dapat diakses siapa saja.
-                     */}
+                    {/* ── PUBLIC ROUTES ─────────────────────────────────── */}
                     <Route path="/profile" element={<Profile />} />
-
-                    {/*
-                     * /monitor — Display monitor real-time untuk layar besar di venue.
-                     * Tidak memerlukan layout admin. Menggunakan token localStorage
-                     * jika tersedia (buka dari browser dengan sesi admin aktif).
-                     */}
                     <Route path="/monitor" element={<Monitor />} />
 
-                    {/* ── AUTH ROUTE ─────────────────────────────────────────── */}
-
+                    {/* ── AUTH ──────────────────────────────────────────── */}
                     <Route
                         path="/login"
                         element={
@@ -94,8 +61,7 @@ function App() {
                         }
                     />
 
-                    {/* ── PROTECTED ROUTES — menggunakan AdminLayout ──────────── */}
-
+                    {/* ── PROTECTED (AdminLayout) ────────────────────────── */}
                     <Route
                         path="/"
                         element={
@@ -104,57 +70,32 @@ function App() {
                             </PrivateRoute>
                         }
                     >
-                        {/* Dashboard: boleh diakses admin DAN petugas */}
+                        {/* Dashboard: admin & petugas */}
                         <Route index element={<Dashboard />} />
 
-                        {/* Route berikut Admin only per OpenAPI spec */}
+                        {/* Settings: semua role yang sudah login */}
+                        <Route path="settings" element={<Settings />} />
+
+                        {/* Admin only */}
                         <Route
                             path="members"
-                            element={
-                                <AdminRoute>
-                                    <Members />
-                                </AdminRoute>
-                            }
+                            element={<AdminRoute><Members /></AdminRoute>}
                         />
                         <Route
                             path="tenants"
-                            element={
-                                <AdminRoute>
-                                    <Tenants />
-                                </AdminRoute>
-                            }
+                            element={<AdminRoute><Tenants /></AdminRoute>}
                         />
                         <Route
                             path="reports"
-                            element={
-                                <AdminRoute>
-                                    <Reports />
-                                </AdminRoute>
-                            }
+                            element={<AdminRoute><Reports /></AdminRoute>}
                         />
-                        {/*
-                         * /events — Manajemen event (Opsi C).
-                         * Admin only: GET /events, POST /events, PATCH /events/:id
-                         */}
                         <Route
                             path="events"
-                            element={
-                                <AdminRoute>
-                                    <Events />
-                                </AdminRoute>
-                            }
+                            element={<AdminRoute><Events /></AdminRoute>}
                         />
-
-                        {/*
-                         * /settings — Pengaturan akun pribadi.
-                         * Dapat diakses oleh admin DAN petugas (bukan AdminRoute).
-                         */}
-                        <Route path="settings" element={<AccountSettings />} />
                     </Route>
 
-                    {/* Catch-all: redirect path tidak dikenal ke Dashboard */}
                     <Route path="*" element={<Navigate to="/" replace />} />
-
                 </Routes>
             </Router>
         </ToastProvider>

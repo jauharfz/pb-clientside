@@ -1,10 +1,15 @@
 // src/layouts/AdminLayout.jsx
+// CHANGELOG:
+// [NEW] Link "Pengaturan Akun" di sidebar → /settings (semua role)
+// [NEW] Avatar user di header bisa diklik → /settings
+// [NEW] Listen CustomEvent 'pekan_user_update' dari Settings.jsx
+//       agar nama di sidebar/header langsung berubah tanpa reload
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     PieChart, Users, Store, FileText, LogOut,
     User, Menu, X, ShieldCheck, UserCog,
-    Calendar, Monitor, BookOpen, Settings
+    Calendar, Monitor, BookOpen, Settings,
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -14,10 +19,8 @@ const AdminLayout = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-    // OpenAPI AdminUser schema: { id, nama, email, role: 'admin' | 'petugas' }
-    const [userData, setUserData] = useState({ nama: 'Admin', role: 'admin' });
+    const [userData, setUserData] = useState({ nama: 'Admin', role: 'admin', email: '' });
 
-    // Badge event aktif — disync dari Dashboard via localStorage + CustomEvent
     const [activeEventBadge, setActiveEventBadge] = useState(() => {
         try {
             const stored = localStorage.getItem('pekan_active_event');
@@ -25,7 +28,6 @@ const AdminLayout = () => {
         } catch { return null; }
     });
 
-    // Badge pending UMKM — disync dari Tenants page via localStorage + CustomEvent
     const [pendingUmkmCount, setPendingUmkmCount] = useState(() => {
         try {
             const stored = localStorage.getItem('pekan_pending_umkm');
@@ -33,6 +35,7 @@ const AdminLayout = () => {
         } catch { return 0; }
     });
 
+    // Sync event badge dari Dashboard
     useEffect(() => {
         const handler = () => {
             try {
@@ -44,39 +47,31 @@ const AdminLayout = () => {
         return () => window.removeEventListener('pekan_event_update', handler);
     }, []);
 
-    // Dengarkan update pending count dari Tenants page
+    // Sync pending UMKM count dari Tenants page
     useEffect(() => {
-        const handler = (e) => {
-            const count = e?.detail?.count ?? 0;
-            setPendingUmkmCount(count);
-        };
+        const handler = (e) => setPendingUmkmCount(e?.detail?.count ?? 0);
         window.addEventListener('pekan_pending_umkm_update', handler);
         return () => window.removeEventListener('pekan_pending_umkm_update', handler);
     }, []);
 
+    // Load user dari localStorage
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            setUserData(JSON.parse(storedUser));
-        }
+        if (storedUser) setUserData(JSON.parse(storedUser));
     }, []);
 
-    // Dengarkan update user data (misal nama diubah di halaman Settings)
+    // [NEW] Dengarkan update nama dari Settings.jsx
     useEffect(() => {
-        const handler = () => {
-            try {
-                const stored = localStorage.getItem('user');
-                if (stored) setUserData(JSON.parse(stored));
-            } catch { /* abaikan */ }
+        const handler = (e) => {
+            if (e?.detail) {
+                setUserData(e.detail);
+            }
         };
         window.addEventListener('pekan_user_update', handler);
         return () => window.removeEventListener('pekan_user_update', handler);
     }, []);
 
-    const handleLogout = () => {
-        setShowLogoutConfirm(true);
-    };
-
+    const handleLogout = () => setShowLogoutConfirm(true);
     const executeLogout = () => {
         setShowLogoutConfirm(false);
         localStorage.removeItem('token');
@@ -84,22 +79,17 @@ const AdminLayout = () => {
         navigate('/login');
     };
 
-    // Filter navItems berdasarkan role.
-    // OpenAPI REQ-AUTH-002 RBAC:
-    //   - Admin:   akses penuh ke semua halaman
-    //   - Petugas: hanya Dashboard
     const allNavItems = [
-        { path: '/',        label: 'Dashboard',     icon: PieChart,  roles: ['admin', 'petugas'] },
-        { path: '/members', label: 'Kelola Member', icon: Users,     roles: ['admin'] },
-        { path: '/tenants', label: 'Tenant UMKM',   icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
-        { path: '/reports', label: 'Laporan',       icon: FileText,  roles: ['admin'] },
-        { path: '/events',  label: 'Kelola Event',  icon: Calendar,  roles: ['admin'] },
-        { path: '/settings', label: 'Pengaturan Akun', icon: Settings, roles: ['admin', 'petugas'] },
+        { path: '/',         label: 'Dashboard',       icon: PieChart,  roles: ['admin', 'petugas'] },
+        { path: '/members',  label: 'Kelola Member',   icon: Users,     roles: ['admin'] },
+        { path: '/tenants',  label: 'Tenant UMKM',     icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
+        { path: '/reports',  label: 'Laporan',         icon: FileText,  roles: ['admin'] },
+        { path: '/events',   label: 'Kelola Event',    icon: Calendar,  roles: ['admin'] },
+        { path: '/settings', label: 'Pengaturan Akun', icon: Settings,  roles: ['admin', 'petugas'] },
     ];
 
     const navItems = allNavItems.filter(item => item.roles.includes(userData.role));
 
-    // Link eksternal (buka tab baru, bukan di dalam layout)
     const externalLinks = [
         { path: '/monitor', label: 'Display Monitor', icon: Monitor },
         { path: '/profile', label: 'Company Profile', icon: BookOpen },
@@ -112,23 +102,18 @@ const AdminLayout = () => {
             case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant, promo diskon, dan persetujuan pendaftaran' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
             case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Pekan Banyumasan' };
+            case '/settings': return { title: 'Pengaturan Akun',      subtitle: 'Kelola nama tampilan dan password akun Anda' };
             default:          return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
         }
     };
 
     const pageInfo = getPageInfo();
-
-    // Style badge role: admin → hijau, petugas → amber
-    const roleBadgeStyle = userData.role === 'admin'
-        ? 'text-green-600'
-        : 'text-amber-600';
-
+    const roleBadgeStyle = userData.role === 'admin' ? 'text-green-600' : 'text-amber-600';
     const RoleIcon = userData.role === 'admin' ? ShieldCheck : UserCog;
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
 
-            {/* ConfirmDialog logout */}
             <ConfirmDialog
                 isOpen={showLogoutConfirm}
                 title="Konfirmasi Logout"
@@ -140,7 +125,6 @@ const AdminLayout = () => {
                 onCancel={() => setShowLogoutConfirm(false)}
             />
 
-            {/* OVERLAY MOBILE */}
             {isMobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-black/50 z-40 md:hidden"
@@ -186,7 +170,6 @@ const AdminLayout = () => {
                                         : 'text-gray-600 hover:bg-gray-50 hover:text-green-700'
                                 }`}
                             >
-                                {/* Ikon dengan badge dot jika ada pending */}
                                 <span className="relative shrink-0">
                                     <Icon size={18} />
                                     {hasBadge && (
@@ -196,7 +179,6 @@ const AdminLayout = () => {
                                     )}
                                 </span>
                                 <span className="flex-1">{item.label}</span>
-                                {/* Badge pill di kanan label */}
                                 {hasBadge && (
                                     <span className="shrink-0 bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-amber-200 leading-none">
                                         {item.badge}
@@ -206,7 +188,6 @@ const AdminLayout = () => {
                         );
                     })}
 
-                    {/* Divider dan link eksternal (admin only) */}
                     {userData.role === 'admin' && (
                         <>
                             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2 px-1">Halaman Publik</div>
@@ -234,7 +215,7 @@ const AdminLayout = () => {
                     )}
                 </nav>
 
-                {/* Info Role */}
+                {/* User info */}
                 <div className="px-4 py-3 border-t border-gray-100 mx-4 mb-1">
                     <div className={`flex items-center gap-2 text-xs font-semibold ${roleBadgeStyle}`}>
                         <RoleIcon size={14} />
@@ -269,14 +250,12 @@ const AdminLayout = () => {
                         <div>
                             <div className="flex items-center gap-2.5">
                                 <h1 className="text-xl md:text-2xl font-bold text-gray-800">{pageInfo.title}</h1>
-                                {/* Badge event aktif — hanya tampil di Dashboard saat ada event */}
                                 {location.pathname === '/' && activeEventBadge?.nama && (
                                     <span className="hidden sm:inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></span>
                                         {activeEventBadge.nama}
                                     </span>
                                 )}
-                                {/* Badge pending di header Tenants */}
                                 {location.pathname === '/tenants' && pendingUmkmCount > 0 && (
                                     <span className="hidden sm:inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
@@ -288,6 +267,7 @@ const AdminLayout = () => {
                         </div>
                     </div>
 
+                    {/* [NEW] Avatar diklik → ke /settings */}
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
                             <div className="text-sm font-bold text-gray-800">{userData.nama}</div>
@@ -296,9 +276,14 @@ const AdminLayout = () => {
                                 {userData.role === 'admin' ? 'Administrator' : 'Petugas'}
                             </div>
                         </div>
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-700 border border-green-200">
+                        <Link
+                            to="/settings"
+                            title="Pengaturan Akun"
+                            className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-700
+                                       border border-green-200 hover:bg-green-200 hover:border-green-300 transition"
+                        >
                             <User size={20} />
-                        </div>
+                        </Link>
                     </div>
                 </header>
 
