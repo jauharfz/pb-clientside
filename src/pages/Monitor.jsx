@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, LogIn, LogOut, CalendarCheck, RefreshCw, Wifi, WifiOff, ExternalLink } from 'lucide-react';
 import api from '../services/api';
+import { supabaseRealtime } from '../lib/supabase';
 
 const REFRESH_INTERVAL = 10;
 
@@ -143,6 +144,7 @@ const Monitor = () => {
     const [countdown, setCountdown]       = useState(REFRESH_INTERVAL);
     const [clock, setClock]               = useState(new Date());
     const countdownRef                    = useRef(REFRESH_INTERVAL);
+    const [realtimeStatus, setRealtimeStatus] = useState(supabaseRealtime ? 'connecting' : 'disabled');
 
     const [themeKey, setThemeKey] = useState(() => getThemeByHour(new Date()));
     const t = THEMES[themeKey];
@@ -177,6 +179,26 @@ const Monitor = () => {
     useEffect(() => { fetchStats(false); }, [fetchStats]);
 
     useEffect(() => {
+        let channel = null;
+        if (supabaseRealtime) {
+            channel = supabaseRealtime
+                .channel('monitor-kunjungan-live')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'kunjungan' },
+                    () => {
+                        fetchStats(true);
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') setRealtimeStatus('connected');
+                    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setRealtimeStatus('error');
+                    else if (status === 'CLOSED') setRealtimeStatus('disabled');
+                });
+        } else {
+            setRealtimeStatus('disabled');
+        }
+
         countdownRef.current = REFRESH_INTERVAL;
         setCountdown(REFRESH_INTERVAL);
         const interval = setInterval(() => {
@@ -188,7 +210,11 @@ const Monitor = () => {
                 fetchStats(true);
             }
         }, 1000);
-        return () => clearInterval(interval);
+
+        return () => {
+            if (channel) supabaseRealtime.removeChannel(channel);
+            clearInterval(interval);
+        };
     }, [fetchStats]);
 
     const fmtClock = (d) =>
@@ -329,7 +355,7 @@ const Monitor = () => {
                             ? <WifiOff size={13} color="#f87171" />
                             : <Wifi    size={13} color={t.secAccents[0]} />}
                         <span style={{ ...BASE.footerText, ...t.footerText }}>
-                            {error === 'network' ? 'Koneksi terputus' : 'Terhubung'}
+                            {error === 'network' ? 'Koneksi terputus' : realtimeStatus === 'connected' ? 'Realtime aktif' : realtimeStatus === 'connecting' ? 'Menghubungkan realtime' : realtimeStatus === 'error' ? 'Backup polling aktif' : 'Terhubung'}
                         </span>
                         {isRefreshing && (
                             <RefreshCw size={11} color={t.secAccents[0]} className="spin" style={{ marginLeft: '0.25rem' }} />
