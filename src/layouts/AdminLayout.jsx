@@ -4,7 +4,7 @@
 // [NEW] Avatar user di header bisa diklik → /settings
 // [NEW] Listen CustomEvent 'pekan_user_update' dari Settings.jsx
 //       agar nama di sidebar/header langsung berubah tanpa reload
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     PieChart, Users, Store, FileText, LogOut,
@@ -12,6 +12,17 @@ import {
     Calendar, Monitor, BookOpen, Settings,
 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
+
+const normalizeExternalUrl = (value, fallback = '/') => {
+    const raw = String(value || '').trim();
+
+    if (!raw) return fallback;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('//')) return `https:${raw}`;
+    if (raw.startsWith('/')) return raw;
+
+    return `https://${raw}`;
+};
 
 const AdminLayout = () => {
     const location = useLocation();
@@ -34,6 +45,11 @@ const AdminLayout = () => {
             return stored ? parseInt(stored, 10) : 0;
         } catch { return 0; }
     });
+
+    const publicCompanyProfileUrl = useMemo(() => normalizeExternalUrl(
+        import.meta.env.VITE_PUBLIC_EVENT_URL || import.meta.env.VITE_UMKM_PUBLIC_URL || '/',
+        '/'
+    ), []);
 
     // Sync event badge dari Dashboard
     useEffect(() => {
@@ -90,9 +106,21 @@ const AdminLayout = () => {
 
     const navItems = allNavItems.filter(item => item.roles.includes(userData.role));
 
-    const externalLinks = [
-        { path: '/monitor', label: 'Display Monitor', icon: Monitor },
-        { path: '/profile', label: 'Company Profile', icon: BookOpen },
+    const publicLinks = [
+        {
+            key: 'monitor',
+            label: 'Display Monitor',
+            icon: Monitor,
+            href: `${window.location.origin}${window.location.pathname}#/monitor`,
+            external: true,
+        },
+        {
+            key: 'company-profile',
+            label: 'Company Profile',
+            icon: BookOpen,
+            href: publicCompanyProfileUrl,
+            external: true,
+        },
     ];
 
     const getPageInfo = () => {
@@ -191,15 +219,14 @@ const AdminLayout = () => {
                     {userData.role === 'admin' && (
                         <>
                             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2 px-1">Halaman Publik</div>
-                            {externalLinks.map((item) => {
+                            {publicLinks.map((item) => {
                                 const Icon = item.icon;
-                                const hashHref = `${window.location.origin}${window.location.pathname}#${item.path}`;
                                 return (
                                     <a
-                                        key={item.path}
-                                        href={hashHref}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                        key={item.key}
+                                        href={item.href}
+                                        target={item.external ? '_blank' : undefined}
+                                        rel={item.external ? 'noopener noreferrer' : undefined}
                                         onClick={() => setIsMobileMenuOpen(false)}
                                         className="flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-sm text-gray-500 hover:bg-gray-50 hover:text-green-700"
                                     >
@@ -258,37 +285,32 @@ const AdminLayout = () => {
                                 )}
                                 {location.pathname === '/tenants' && pendingUmkmCount > 0 && (
                                     <span className="hidden sm:inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
-                                        {pendingUmkmCount} pendaftaran masuk
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        {pendingUmkmCount} menunggu persetujuan
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs md:text-sm text-gray-500 hidden sm:block">{pageInfo.subtitle}</p>
+                            <p className="text-sm text-gray-500 mt-1">{pageInfo.subtitle}</p>
                         </div>
                     </div>
 
-                    {/* [NEW] Avatar diklik → ke /settings */}
-                    <div className="flex items-center gap-4">
-                        <div className="text-right hidden sm:block">
-                            <div className="text-sm font-bold text-gray-800">{userData.nama}</div>
-                            <div className={`text-xs font-medium capitalize flex items-center justify-end gap-1 ${roleBadgeStyle}`}>
-                                <RoleIcon size={12} />
-                                {userData.role === 'admin' ? 'Administrator' : 'Petugas'}
-                            </div>
+                    <button
+                        onClick={() => navigate('/settings')}
+                        className="flex items-center gap-3 rounded-2xl border border-gray-200 px-3 py-2 hover:bg-gray-50 transition"
+                        title="Buka Pengaturan Akun"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold">
+                            {userData.nama?.charAt(0)?.toUpperCase() || <User size={18} />}
                         </div>
-                        <Link
-                            to="/settings"
-                            title="Pengaturan Akun"
-                            className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-700
-                                       border border-green-200 hover:bg-green-200 hover:border-green-300 transition"
-                        >
-                            <User size={20} />
-                        </Link>
-                    </div>
+                        <div className="hidden sm:block text-left">
+                            <div className="text-sm font-semibold text-gray-800 leading-tight max-w-[160px] truncate">{userData.nama}</div>
+                            <div className="text-xs text-gray-500 capitalize">{userData.role}</div>
+                        </div>
+                    </button>
                 </header>
 
-                {/* SCROLLABLE CONTENT */}
-                <div className="flex-1 overflow-auto p-4 md:p-8">
+                {/* PAGE */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-8">
                     <Outlet />
                 </div>
             </main>
