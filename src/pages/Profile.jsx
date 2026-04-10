@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import logoImg from '../assets/logo.png';
 
 const normalizePublicUrl = (value) => {
     const raw = String(value || '').trim();
@@ -47,19 +48,14 @@ export default function Profile() {
                 boxShadow: '0 18px 40px rgba(15,23,42,0.08)',
                 textAlign: 'center',
             }}>
-                <div style={{
+                <img src={logoImg} alt="Logo Pekan Banyumasan" style={{
                     width: '52px',
                     height: '52px',
                     borderRadius: '16px',
-                    background: '#245840',
-                    color: '#fff',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 800,
-                    fontSize: '20px',
+                    objectFit: 'cover',
                     marginBottom: '16px',
-                }}>P</div>
+                    display: 'inline-block',
+                }} />
                 <h1 style={{ margin: '0 0 8px', fontSize: '24px', lineHeight: 1.2 }}>Mengalihkan ke halaman publik event</h1>
                 <p style={{ margin: '0 0 20px', color: '#6b7280', lineHeight: 1.7 }}>
                     Anda akan langsung diarahkan ke halaman publik UMKM dan event Peken Banyumasan.

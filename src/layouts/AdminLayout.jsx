@@ -5,6 +5,7 @@
 // [NEW] Listen CustomEvent 'pekan_user_update' dari Settings.jsx
 //       agar nama di sidebar/header langsung berubah tanpa reload
 import React, { useState, useEffect, useMemo } from 'react';
+import logoImg from '../assets/logo.png';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     PieChart, Users, Store, FileText, LogOut,
@@ -169,7 +170,7 @@ const AdminLayout = () => {
                 {/* Logo */}
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between md:justify-start gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold text-xl">P</div>
+                        <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-10 h-10 rounded-lg object-cover" />
                         <div>
                             <h2 className="text-lg font-bold text-gray-800 leading-tight">Pekan</h2>
                             <p className="text-xs text-gray-500 font-medium">Banyumasan</p>

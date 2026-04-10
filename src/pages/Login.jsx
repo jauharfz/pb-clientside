@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, HelpCircle, ArrowRight, ShieldAlert } from 'lucide-react';
 import api from '../services/api';
+import logoImg from '../assets/logo.png';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -46,7 +47,7 @@ const Login = () => {
                 <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -ml-20 -mb-20"></div>
 
                 <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-800 font-bold text-2xl shadow-lg">P</div>
+                    <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-12 h-12 rounded-xl object-cover shadow-lg" />
                     <div>
                         <h1 className="text-2xl font-bold text-white tracking-wide"> Banyumasan</h1>
                         <p className="text-green-200 text-sm font-medium">Sistem Manajemen Event</p>
@@ -75,7 +76,7 @@ const Login = () => {
 
                 <div className="w-full max-w-md">
                     <div className="flex lg:hidden items-center gap-3 mb-10">
-                        <div className="w-10 h-10 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">P</div>
+                        <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-10 h-10 rounded-lg object-cover shadow-md" />
                         <h1 className="text-xl font-bold text-gray-900 tracking-wide">Pekan Banyumasan</h1>
                     </div>
 

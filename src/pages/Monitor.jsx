@@ -3,6 +3,7 @@
 // AUTH: GET /dashboard/stats memerlukan JWT — buka dari browser dengan sesi admin aktif.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import logoImg from '../assets/logo.png';
 import { Link } from 'react-router-dom';
 import { Users, LogIn, LogOut, CalendarCheck, RefreshCw, Wifi, WifiOff, ExternalLink } from 'lucide-react';
 import api from '../services/api';
@@ -278,7 +279,7 @@ const Monitor = () => {
                 {/* ══ HEADER ══════════════════════════════════════════════ */}
                 <header style={{ ...BASE.header, ...t.header }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem,1.5vw,1.25rem)', minWidth: 0 }}>
-                        <div style={{ ...BASE.logo, ...t.logo }}>P</div>
+                        <img src={logoImg} alt="Logo Pekan Banyumasan" style={{ ...BASE.logo, ...t.logo, objectFit: 'cover', background: 'none', boxShadow: t.logo?.boxShadow }} />
                         <div style={{ minWidth: 0 }}>
                             <div style={{ ...BASE.brandName, ...t.brandName }}>Pekan Banyumasan</div>
                             {stats?.nama_event   && <div style={{ ...BASE.eventName, ...t.eventName }}>{stats.nama_event}</div>}
