@@ -384,7 +384,7 @@ const BASE = {
         position: 'fixed', inset: 0,
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none',
-        fontFamily: 'Outfit, sans-serif',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
         transition: 'background 2s ease',
     },
     bgDot: {
@@ -419,7 +419,7 @@ const BASE = {
         borderRadius: '0.625rem',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#fff',
-        fontFamily: 'Bebas Neue, sans-serif',
+        fontFamily: 'Lora, serif',
         fontSize: 'clamp(1rem,2vw,1.5rem)', letterSpacing: '0.05em',
         transition: 'background 2s ease, box-shadow 2s ease',
     },
@@ -441,7 +441,7 @@ const BASE = {
         transition: 'all 2s ease',
     },
     clockTime: {
-        fontFamily: 'Bebas Neue, sans-serif',
+        fontFamily: 'Lora, serif',
         fontSize: 'clamp(2rem,5.5vw,5rem)',
         letterSpacing: '0.04em', lineHeight: 1,
         transition: 'color 2s ease, text-shadow 2s ease',
@@ -496,7 +496,7 @@ const BASE = {
         transition: 'background 2s ease, border-color 2s ease',
     },
     heroNumber: {
-        fontFamily: 'Bebas Neue, sans-serif',
+        fontFamily: 'Lora, serif',
         fontSize: 'clamp(5rem,18vw,16rem)',
         lineHeight: 0.9, letterSpacing: '0.02em', display: 'block',
         transition: 'color 2s ease, text-shadow 2s ease',
@@ -531,7 +531,7 @@ const BASE = {
         fontWeight: 700, padding: '0.15rem 0.4rem', borderRadius: '0.3rem', letterSpacing: '0.05em',
     },
     secNumber: {
-        fontFamily: 'Bebas Neue, sans-serif',
+        fontFamily: 'Lora, serif',
         fontSize: 'clamp(2.5rem,7vw,6.5rem)',
         lineHeight: 1, letterSpacing: '0.02em', display: 'block',
         transition: 'color 2s ease',
@@ -567,10 +567,10 @@ const BASE = {
 
 /* ─── Global CSS ───────────────────────────────────────────────────── */
 const GLOBAL_STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+    
 
     .mon * { box-sizing: border-box; }
-    .mon   { font-family: 'Outfit', sans-serif; }
+    .mon   { font-family: 'Plus Jakarta Sans', sans-serif; }
 
     @keyframes spin      { to { transform: rotate(360deg); } }
     @keyframes pulseDot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
