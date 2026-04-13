@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import ZoneSelector from '../components/ZoneSelector';
+import ZoneEditor from '../components/ZoneEditor';
+import { getEventZones, saveEventZones, syncOccupiedFromTenants, getZoneStats } from '../lib/eventZones';
 
 // ── DUMMY DATA ────────────────────────────────────────────────────────────────
 const DUMMY_EVENTS = {
@@ -247,7 +249,7 @@ function AssignTenantModal({ onClose, onAssign, existingIds }) {
               </button>
             </div>
             {useZone ? (
-              <ZoneSelector value={posisi} onChange={setPosisi}/>
+              <ZoneSelector value={posisi} onChange={setPosisi} zones={zones}/>
             ) : (
               <input value={posisi} onChange={e => setPosisi(e.target.value)} placeholder="cth: Zona A - Stand 5"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-green-400"/>
@@ -279,7 +281,7 @@ function StandSelectModal({ value, onClose, onChange }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
         </div>
         <div className="p-5 space-y-4">
-          <ZoneSelector value={local} onChange={setLocal} compact/>
+          <ZoneSelector value={local} onChange={setLocal} zones={zones} compact/>
           <div className="pt-2 border-t border-gray-100">
             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Atau ketik manual</label>
             <input
@@ -342,6 +344,7 @@ export default function EventDetail() {
   const [event, setEvent] = useState(null);
   const [members, setMembers] = useState([]);
   const [tenants, setTenants] = useState([]);
+  const [zones,   setZones]   = useState([]);
   const [activeTab, setActiveTab] = useState('members');
   const [showAssignMember, setShowAssignMember] = useState(false);
   const [showAssignTenant, setShowAssignTenant] = useState(false);
@@ -351,7 +354,11 @@ export default function EventDetail() {
     setTimeout(() => {
       setEvent(DUMMY_EVENTS[id] || null);
       setMembers(DUMMY_EVENT_MEMBERS[id] || []);
-      setTenants(DUMMY_EVENT_TENANTS[id] || []);
+      const assignedTenants = DUMMY_EVENT_TENANTS[id] || [];
+      setTenants(assignedTenants);
+      // Load zones from storage and sync occupied status from assigned tenants
+      const eventZones = syncOccupiedFromTenants(id, assignedTenants.map(t => ({posisi_event: t.posisi_event})));
+      setZones(eventZones);
       setLoading(false);
     }, 400);
   }, [id]);
@@ -386,7 +393,13 @@ export default function EventDetail() {
   };
 
   const assignTenant = async (data) => {
-    setTenants(l => [...l, { ...data, tenant_id: data.id }]);
+    const updatedTenants = [...tenants, { ...data, tenant_id: data.id }];
+    setTenants(updatedTenants);
+    // Sync occupied status in zones
+    if (eventId) {
+      const updatedZones = syncOccupiedFromTenants(eventId, updatedTenants.map(t=>({posisi_event:t.posisi_event})));
+      setZones(updatedZones);
+    }
     toast.success(`${data.nama_usaha} berhasil di-assign ke event`);
     try {
       const { triggerUmkmEventAssigned } = await import('../lib/notifications');
@@ -495,12 +508,18 @@ export default function EventDetail() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {/* Tab bar */}
           <div className="flex border-b border-gray-100">
-            {[['members','Pekerja Kreatif'],['tenants','UMKM']].map(([v,l]) => (
+            {[['members','Pekerja Kreatif'],['tenants','UMKM'],['zones','Kelola Zona']].map(([v,l]) => (
               <button key={v} onClick={() => setActiveTab(v)}
                 className={`flex-1 py-3.5 text-sm font-semibold transition border-b-2 ${activeTab===v ? 'border-green-600 text-green-700 bg-green-50/50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                {l} <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-500">
-                  {v==='members' ? members.length : tenants.length}
-                </span>
+                {l}{v !== 'zones' && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-500">
+                    {v==='members' ? members.length : tenants.length}
+                  </span>
+                )}{v === 'zones' && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-500">
+                    {zones.length}Z
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -600,6 +619,17 @@ export default function EventDetail() {
                     ))}
                   </div>
               }
+            </div>
+          )}
+
+          {/* Tab: Kelola Zona */}
+          {activeTab === 'zones' && (
+            <div className="p-5">
+              <ZoneEditor
+                eventId={eventId}
+                zones={zones}
+                onZonesChange={updated => setZones(updated)}
+              />
             </div>
           )}
         </div>

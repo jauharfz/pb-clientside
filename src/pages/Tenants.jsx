@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import ZoneSelector from '../components/ZoneSelector';
+import { getEventZones } from '../lib/eventZones';
 
 const DUMMY_TENANTS = [
   { id:'t1', nama_usaha:'Batik Sari Rahayu',    pemilik:'Sari Dewi',     kategori:'Kriya & Fashion', kota:'Banyumas',    no_hp:'08111234567', email:'sari@batik.com', status:'aktif',    tanggal_daftar:'2024-03-10', komisi_persen:15, posisi:'Zona A - Lapak 3', total_penjualan:4500000, komisi_terkumpul:675000,  deskripsi:'Batik tulis dan printing motif Banyumasan.' },
@@ -39,8 +40,9 @@ function useDebounce(v,d=300){const[r,s]=useState(v);useEffect(()=>{const t=setT
 // ── AssignEventModal ─────────────────────────────────────────────────────────
 // ── PosisiInlineEditor — click-to-edit stand position ────────────────────────
 // ── PosisiSelectModal — centered modal with ZoneSelector ─────────────────────
-function PosisiSelectModal({ value, onClose, onChange }) {
+function PosisiSelectModal({ value, onClose, onChange, eventId }) {
   const [local, setLocal] = useState(value || '');
+  const zones = eventId ? getEventZones(eventId) : [];
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
@@ -49,7 +51,7 @@ function PosisiSelectModal({ value, onClose, onChange }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
         </div>
         <div className="p-5 space-y-4">
-          <ZoneSelector value={local} onChange={setLocal} compact/>
+          <ZoneSelector value={local} onChange={setLocal} zones={zones} compact/>
           <div className="pt-2 border-t border-gray-100">
             <label className="text-xs font-semibold text-gray-400 mb-1.5 block uppercase tracking-wider">Atau ketik manual</label>
             <input value={local} onChange={e => setLocal(e.target.value)} placeholder="cth: Zona A - Stand 5"
@@ -69,7 +71,7 @@ function PosisiSelectModal({ value, onClose, onChange }) {
 }
 
 // ── PosisiInlineEditor — button opens PosisiSelectModal ───────────────────────
-function PosisiInlineEditor({ value, onChange }) {
+function PosisiInlineEditor({ value, onChange, eventId }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -82,7 +84,7 @@ function PosisiInlineEditor({ value, onChange }) {
         <span className="max-w-[100px] truncate">{value || 'Pilih stand'}</span>
         <span className="text-gray-300 text-[9px]">▼</span>
       </button>
-      {open && <PosisiSelectModal value={value} onClose={() => setOpen(false)} onChange={onChange}/>}
+      {open && <PosisiSelectModal value={value} onClose={() => setOpen(false)} onChange={onChange} eventId={eventId}/>}
     </>
   );
 }
@@ -119,7 +121,7 @@ function AssignEventModal({ existingIds, onClose, onAssign }) {
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-2 block">Posisi Stand di Event</label>
-            <ZoneSelector value={posisi} onChange={setPosisi} compact/>
+            <ZoneSelector value={posisi} onChange={setPosisi} zones={selected ? getEventZones(selected.id) : []} compact/>
             <div className="mt-2">
               <input value={posisi} onChange={e=>setPosisi(e.target.value)} placeholder="Atau ketik manual: cth Zona A - Stand 5"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-green-400"/>
@@ -168,7 +170,7 @@ const PendingCard = memo(({ t, onApprove, onReject, isProcessing }) => {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 mb-2 block flex items-center gap-1"><MapPin size={11}/>Pilih Posisi Lapak</label>
-              <ZoneSelector value={posisi} onChange={setPosisi} compact/>
+              <ZoneSelector value={posisi} onChange={setPosisi} zones={getEventZones('e1')} compact/>
               <input value={posisi} onChange={e=>setPosisi(e.target.value)} placeholder="Atau ketik manual..."
                 className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-green-400 transition"/>
             </div>
@@ -322,6 +324,7 @@ const EditDrawer = ({ tenant, onClose, onSave }) => {
                             <PosisiInlineEditor
                               value={e.posisi_event}
                               onChange={val => setTenantEvents(l => l.map(x => x.id===e.id ? {...x,posisi_event:val} : x))}
+                              eventId={e.event_id}
                             />
                             <span className={`text-[10px] ${e.assigned_by==='admin'?'text-blue-500':'text-gray-400'}`}>
                               {e.assigned_by==='admin'?'Oleh Admin':'Mandiri'}
