@@ -92,3 +92,48 @@ api.interceptors.response.use(
 );
 
 export default api;
+// ── EVENT RELASI ENDPOINTS (stub — siap diganti saat backend ready) ──────────
+
+export const eventApi = {
+  // Event CRUD
+  list:   (params) => api.get('/api/events', { params }),
+  detail: (id)     => api.get(`/api/events/${id}`),
+  create: (data)   => api.post('/api/events', data),
+  update: (id, d)  => api.put(`/api/events/${id}`, d),
+  delete: (id)     => api.delete(`/api/events/${id}`),
+  status: (id, s)  => api.patch(`/api/events/${id}/status`, { status: s }),
+
+  // Event ↔ Member relasi
+  members:       (id)      => api.get(`/api/events/${id}/members`),
+  assignMember:  (id, d)   => api.post(`/api/events/${id}/members`, d),
+  removeMember:  (id, mid) => api.delete(`/api/events/${id}/members/${mid}`),
+  updateMember:  (id, mid, d) => api.patch(`/api/events/${id}/members/${mid}`, d),
+
+  // Event ↔ Tenant relasi
+  tenants:       (id)      => api.get(`/api/events/${id}/tenants`),
+  assignTenant:  (id, d)   => api.post(`/api/events/${id}/tenants`, d),
+  removeTenant:  (id, tid) => api.delete(`/api/events/${id}/tenants/${tid}`),
+  updateTenant:  (id, tid, d) => api.patch(`/api/events/${id}/tenants/${tid}`, d),
+};
+
+export const memberApi = {
+  list:       (params) => api.get('/api/members', { params }),
+  detail:     (id)     => api.get(`/api/members/${id}`),
+  status:     (id, s)  => api.patch(`/api/members/${id}/status`, { status: s }),
+  events:     (id)     => api.get(`/api/members/${id}/events`),
+  portfolio:  (id)     => api.get(`/api/members/${id}/portfolio`),
+  stories:    (id)     => api.get(`/api/members/${id}/stories`),
+};
+
+export const tenantApi = {
+  list:   (params) => api.get('/api/tenants', { params }),
+  detail: (id)     => api.get(`/api/tenants/${id}`),
+  update: (id, d)  => api.patch(`/api/tenants/${id}`, d),
+  status: (id, s)  => api.patch(`/api/tenants/${id}/status`, { status: s }),
+  events: (id)     => api.get(`/api/tenants/${id}/events`),
+};
+
+export const storyApi = {
+  list:   (params) => api.get('/api/stories', { params }),
+  delete: (id)     => api.delete(`/api/admin/stories/${id}`),
+};

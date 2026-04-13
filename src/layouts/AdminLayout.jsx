@@ -98,7 +98,7 @@ const AdminLayout = () => {
 
     const allNavItems = [
         { path: '/',         label: 'Dashboard',       icon: PieChart,  roles: ['admin', 'petugas'] },
-        { path: '/members',  label: 'Kelola Member',   icon: Users,     roles: ['admin'] },
+        { path: '/members',  label: 'Pekerja Kreatif', icon: Users,     roles: ['admin'] },
         { path: '/tenants',  label: 'Tenant UMKM',     icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
         { path: '/reports',  label: 'Laporan',         icon: FileText,  roles: ['admin'] },
         { path: '/events',   label: 'Kelola Event',    icon: Calendar,  roles: ['admin'] },
@@ -127,12 +127,14 @@ const AdminLayout = () => {
     const getPageInfo = () => {
         switch (location.pathname) {
             case '/':         return { title: 'Dashboard Real-time',  subtitle: 'Pantau pergerakan pengunjung event hari ini' };
-            case '/members':  return { title: 'Manajemen Member',     subtitle: 'Registrasi member baru dan kelola data keychain NFC' };
-            case '/tenants':  return { title: 'Data Tenant UMKM',     subtitle: 'Integrasi data tenant, promo diskon, dan persetujuan pendaftaran' };
+            case '/members':  return { title: 'Pekerja Kreatif',      subtitle: 'Kelola dan verifikasi pegiat kebudayaan Pekenbanyumas' };
+            case '/tenants':  return { title: 'Tenant & Revenue Sharing', subtitle: 'Kelola UMKM, set posisi, persentase komisi, dan monitoring revenue' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
             case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Pekan Banyumasan' };
             case '/settings': return { title: 'Pengaturan Akun',      subtitle: 'Kelola nama tampilan dan password akun Anda' };
-            default:          return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
+            default:
+                if (location.pathname.startsWith('/events/')) return { title: 'Detail Event', subtitle: 'Kelola relasi pekerja kreatif & UMKM di event ini' };
+                return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
         }
     };
 

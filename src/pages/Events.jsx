@@ -1,559 +1,272 @@
-// src/pages/Events.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// Events.jsx — Kelola Event + Publikasi ke Beranda (revisi dengan field baru)
+import React, { useState } from 'react';
 import {
-    Calendar, Plus, MapPin, Clock, AlertCircle,
-    RefreshCw, X, CheckCircle, XCircle, ToggleLeft,
-    Edit, Trash2, Lock
+  Plus, Calendar, MapPin, Edit3, Trash2, Eye, EyeOff, X, Save, Loader2,
+  Users, Tag, FileText, Settings
 } from 'lucide-react';
-import api from '../services/api';
 import { useToast } from '../components/Toast';
-import ConfirmDialog from '../components/ConfirmDialog';
+import { Link } from 'react-router-dom';
+import ImageUpload from '../components/ImageUpload';
 
-// ── Helper tanggal ────────────────────────────────────────────────────────────
+const SUBSEKTORS_ALL = [
+  'Kuliner','Kriya','Fashion','Musik','Seni Pertunjukan','Film & Animasi',
+  'Fotografi','Desain Produk','Arsitektur','Periklanan','Penerbitan',
+  'Seni Rupa','Televisi & Radio','Game','Aplikasi Digital','Riset & Pengembangan','Lainnya',
+];
 
-// Gunakan local date (bukan UTC) agar cocok dengan nilai dari HTML date input
-// dan timezone pengguna WIB (UTC+7).
-// new Date().toISOString() selalu UTC — menyebabkan mismatch antara 00:00–06:59 WIB.
-const getTodayStr = () => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+const DUMMY_EVENTS = [
+  { id:'e1', nama:'Festival Budaya Banyumasan 2025', tanggal:'2025-05-17', jam_mulai:'08:00', jam_selesai:'22:00', tanggal_selesai:'2025-05-19', lokasi:'Alun-Alun Purwokerto', deskripsi:'Festival tahunan menampilkan seni, kuliner, dan kerajinan khas Banyumas.', konten_lengkap:'', status:'published', peserta:34, kapasitas:200, subsektor:['Kriya','Musik','Kuliner'], banner_url:'', galeri:[] },
+  { id:'e2', nama:'Workshop Batik & Tenun Nusantara', tanggal:'2025-04-26', jam_mulai:'09:00', jam_selesai:'17:00', tanggal_selesai:'2025-04-27', lokasi:'Gedung Kebudayaan Cilacap', deskripsi:'Pelatihan intensif 2 hari teknik batik tulis dan tenun lurik.', konten_lengkap:'', status:'published', peserta:18, kapasitas:30, subsektor:['Kriya','Fashion'], banner_url:'', galeri:[] },
+  { id:'e3', nama:'Pameran Kriya Ekraf Regional', tanggal:'2025-06-10', jam_mulai:'10:00', jam_selesai:'21:00', tanggal_selesai:'2025-06-12', lokasi:'Mall Cilacap Raya', deskripsi:'Pameran dan bazaar produk ekonomi kreatif se-eks Karesidenan Banyumas.', konten_lengkap:'', status:'draft', peserta:0, kapasitas:500, subsektor:['Kriya','Desain Produk'], banner_url:'', galeri:[] },
+  { id:'e4', nama:'Peken Banyumasan #12', tanggal:'2025-03-20', jam_mulai:'16:00', jam_selesai:'22:00', tanggal_selesai:'2025-03-20', lokasi:'Amphitheater GOR Satria', deskripsi:'Pasar budaya mingguan dengan penampilan seniman lokal.', konten_lengkap:'', status:'selesai', peserta:145, kapasitas:500, subsektor:['Musik','Kuliner'], banner_url:'', galeri:[] },
+];
+
+const EMPTY = { nama:'', tanggal:'', jam_mulai:'08:00', jam_selesai:'22:00', tanggal_selesai:'', lokasi:'', deskripsi:'', konten_lengkap:'', kapasitas:100, status:'draft', subsektor:[], banner_url:'', galeri:[] };
+const fmtTgl = d => d ? new Date(d).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}) : '';
+const STATUS_CLS = {
+  published:   'bg-green-50 text-green-700 border-green-200',
+  draft:       'bg-gray-50 text-gray-500 border-gray-200',
+  selesai:     'bg-yellow-50 text-yellow-700 border-yellow-200',
+  berlangsung: 'bg-blue-50 text-blue-600 border-blue-200',
 };
 
-/**
- * Klasifikasi visual event.
- * DB status hanya 'aktif' | 'selesai'.
- * Badge display ditentukan dari kombinasi status + tanggal:
- *   aktif              → AKTIF         (sedang berlangsung)
- *   selesai + tgl depan → BELUM MULAI  (tersimpan, belum bisa diaktifkan)
- *   selesai + tgl lalu  → SELESAI      (sudah berakhir)
- */
-const getEventDisplay = (event) => {
-    const today = getTodayStr();
-    if (event.status === 'aktif') {
-        return {
-            badge: 'AKTIF', badgeCls: 'bg-green-100 text-green-700',
-            pulse: true, cardBorder: 'border-green-200', dim: false,
-            iconBg: 'bg-green-100', iconCls: 'text-green-700',
-            canActivate: false, // sudah aktif
-        };
-    }
-    if (event.tanggal > today) {
-        return {
-            badge: 'BELUM MULAI', badgeCls: 'bg-blue-100 text-blue-700',
-            pulse: false, cardBorder: 'border-blue-100', dim: false,
-            iconBg: 'bg-blue-100', iconCls: 'text-blue-600',
-            canActivate: false, // tanggal belum tiba
-        };
-    }
-    return {
-        badge: 'SELESAI', badgeCls: 'bg-gray-100 text-gray-500',
-        pulse: false, cardBorder: 'border-gray-100', dim: true,
-        iconBg: 'bg-gray-100', iconCls: 'text-gray-400',
-        canActivate: true, // tanggal sudah tiba, bisa diaktifkan kembali
-    };
-};
+function EventFormModal({ editItem, onClose, onSave }) {
+  const [form, setForm] = useState(editItem ? {...editItem} : EMPTY);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
-// ── Modal Form (Tambah & Edit) ────────────────────────────────────────────────
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const toggleSub = (s) => set('subsektor', (form.subsektor||[]).includes(s)
+    ? form.subsektor.filter(x => x !== s)
+    : [...(form.subsektor||[]), s]);
 
-const EventFormModal = ({ isOpen, isEditMode, initialData, activeEvents, onClose, onSuccess }) => {
-    const toast = useToast();
-    const [formData, setFormData]         = useState({ nama_event: '', tanggal: '', lokasi: '' });
-    const [isSubmitting, setIsSubmitting] = useState(false);
+  const save = async () => {
+    if (!form.nama || !form.tanggal || !form.jam_mulai) { toast.error('Nama, tanggal, dan jam mulai wajib diisi'); return; }
+    setSaving(true);
+    await new Promise(r => setTimeout(r, 600));
+    onSave(form);
+    setSaving(false);
+    onClose();
+  };
 
-    useEffect(() => {
-        if (!isOpen) return;
-        setFormData(isEditMode && initialData
-            ? { nama_event: initialData.nama_event, tanggal: initialData.tanggal, lokasi: initialData.lokasi }
-            : { nama_event: '', tanggal: '', lokasi: '' }
-        );
-    }, [isOpen, isEditMode, initialData]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-        try {
-            if (isEditMode) {
-                // Hanya sertakan tanggal dalam payload jika benar-benar berubah.
-                // Jika event sedang aktif dan tanggal tidak berubah, backend tidak perlu
-                // tahu tentang tanggal → mencegah false-positive guard 422.
-                const editPayload = {
-                    nama_event: formData.nama_event,
-                    lokasi:     formData.lokasi,
-                };
-                if (dateChanged) {
-                    editPayload.tanggal = formData.tanggal;
-                }
-                await api.patch(`/events/${initialData.id}`, editPayload);
-                toast.success('Event berhasil diperbarui!');
-            } else {
-                await api.post('/events', formData);
-                toast.success('Event berhasil dibuat!');
-            }
-            onSuccess();
-            onClose();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Terjadi kesalahan pada server.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const today           = getTodayStr();
-    const selectedDate    = formData.tanggal;
-    const isCurrentActive = isEditMode && initialData?.status === 'aktif';
-    const dateChanged     = isEditMode && selectedDate !== initialData?.tanggal;
-
-    // Info otomatis untuk mode Tambah (berdasarkan tanggal dipilih)
-    const willBeActive  = !isEditMode && selectedDate && selectedDate === today;
-    const willBePast    = !isEditMode && selectedDate && selectedDate < today;
-    const willBePending = !isEditMode && selectedDate && selectedDate > today;
-    const willDeactivateOthers = willBeActive && activeEvents.length > 0;
-
-    // Info perubahan tanggal untuk mode Edit
-    const editDateWillActivate = isEditMode && dateChanged && selectedDate === today;
-    const editDateWillPast     = isEditMode && dateChanged && selectedDate < today && !isCurrentActive;
-    const editDateWillPend     = isEditMode && dateChanged && selectedDate > today;
-    const editWillDeactivateOthers = editDateWillActivate && activeEvents.some(e => e.id !== initialData?.id);
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-             onClick={() => !isSubmitting && onClose()}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-                 onClick={(e) => e.stopPropagation()}>
-
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isEditMode ? 'bg-amber-100' : 'bg-green-100'}`}>
-                            {isEditMode ? <Edit size={17} className="text-amber-600"/> : <Calendar size={17} className="text-green-700"/>}
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-gray-800">{isEditMode ? 'Edit Event' : 'Tambah Event Baru'}</h3>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                                {isEditMode ? 'Perbarui detail event' : 'Isi detail event yang akan dibuat'}
-                            </p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600 transition p-1">
-                        <X size={20}/>
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {/* Nama Event */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Nama Event <span className="text-red-500">*</span>
-                        </label>
-                        <input type="text" required value={formData.nama_event}
-                               onChange={(e) => setFormData(p => ({ ...p, nama_event: e.target.value }))}
-                               placeholder="cth. Pekan Banyumasan Juli 2025"
-                               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"/>
-                    </div>
-
-                    {/* Tanggal */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Tanggal Pelaksanaan <span className="text-red-500">*</span>
-                            {isCurrentActive && (
-                                <span className="ml-2 text-xs font-normal text-red-500 inline-flex items-center gap-1">
-                                    <Lock size={11}/> Dikunci saat event aktif
-                                </span>
-                            )}
-                        </label>
-                        {isCurrentActive ? (
-                            /* Tanggal dikunci untuk event yang sedang aktif */
-                            <div className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500 flex items-center gap-2 cursor-not-allowed">
-                                <Lock size={14} className="text-gray-400 shrink-0"/>
-                                <span>
-                                    {new Date(initialData.tanggal + 'T00:00:00').toLocaleDateString('id-ID', {
-                                        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-                                    })}
-                                </span>
-                                <span className="ml-auto text-xs text-red-400">Tidak dapat diubah</span>
-                            </div>
-                        ) : (
-                            <input type="date" required value={formData.tanggal}
-                                   onChange={(e) => setFormData(p => ({ ...p, tanggal: e.target.value }))}
-                                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"/>
-                        )}
-                    </div>
-
-                    {/* Lokasi */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Lokasi <span className="text-red-500">*</span>
-                        </label>
-                        <input type="text" required value={formData.lokasi}
-                               onChange={(e) => setFormData(p => ({ ...p, lokasi: e.target.value }))}
-                               placeholder="cth. Alun-alun Purwokerto"
-                               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:bg-white transition text-sm"/>
-                    </div>
-
-                    {!isEditMode && selectedDate && (
-                        <>
-                            {willBeActive && !willDeactivateOthers && (
-                                <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-xs text-green-700 flex items-start gap-2">
-                                    <CheckCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal hari ini — event akan langsung berstatus <strong>Aktif</strong> dan siap menerima tap NFC.</p>
-                                </div>
-                            )}
-                            {willDeactivateOthers && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-start gap-2">
-                                    <AlertCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Ada event lain yang sedang aktif. Event tersebut akan otomatis <strong>dinonaktifkan</strong> saat event baru ini dibuat.</p>
-                                </div>
-                            )}
-                            {willBePast && (
-                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600 flex items-start gap-2">
-                                    <AlertCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal sudah lewat — event akan tersimpan langsung sebagai <strong>Selesai</strong>. Anda masih bisa mengaktifkannya manual jika diperlukan.</p>
-                                </div>
-                            )}
-                            {willBePending && (
-                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 flex items-start gap-2">
-                                    <Clock size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal di masa depan — event tersimpan sebagai <strong>Belum Mulai</strong>. Tombol Aktifkan baru tersedia di hari pelaksanaan.</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {/* Info dinamis: mode Edit, tanggal berubah */}
-                    {isEditMode && !isCurrentActive && dateChanged && selectedDate && (
-                        <>
-                            {editDateWillActivate && !editWillDeactivateOthers && (
-                                <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-xs text-green-700 flex items-start gap-2">
-                                    <CheckCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal diubah ke hari ini — event akan otomatis berstatus <strong>Aktif</strong> setelah disimpan.</p>
-                                </div>
-                            )}
-                            {editWillDeactivateOthers && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-start gap-2">
-                                    <AlertCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal diubah ke hari ini dan ada event lain yang aktif. Event aktif tersebut akan otomatis <strong>dinonaktifkan</strong>.</p>
-                                </div>
-                            )}
-                            {editDateWillPast && (
-                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600 flex items-start gap-2">
-                                    <AlertCircle size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal diubah ke masa lalu — event akan tetap berstatus <strong>Selesai</strong>.</p>
-                                </div>
-                            )}
-                            {editDateWillPend && (
-                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 flex items-start gap-2">
-                                    <Clock size={14} className="shrink-0 mt-0.5"/>
-                                    <p>Tanggal diubah ke masa depan — event akan otomatis berstatus <strong>Belum Mulai</strong>.</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    <div className="flex justify-end gap-3 pt-1">
-                        <button type="button" onClick={onClose} disabled={isSubmitting}
-                                className="px-5 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-100 rounded-xl transition disabled:opacity-50">
-                            Batal
-                        </button>
-                        <button type="submit" disabled={isSubmitting}
-                                className={`px-5 py-2 text-white font-semibold text-sm rounded-xl transition shadow-md disabled:opacity-60 flex items-center gap-2 ${
-                                    isEditMode ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-green-700 hover:bg-green-800 shadow-green-200'
-                                }`}>
-                            {isSubmitting
-                                ? <><RefreshCw size={14} className="animate-spin"/> Menyimpan...</>
-                                : isEditMode ? 'Simpan Perubahan' : 'Buat Event'
-                            }
-                        </button>
-                    </div>
-                </form>
-            </div>
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+          <h3 className="font-bold text-gray-800">{editItem ? 'Edit Event' : 'Buat Event Baru'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
         </div>
-    );
-};
 
-// ── Halaman Events ────────────────────────────────────────────────────────────
-
-const Events = () => {
-    const toast = useToast();
-    const [events, setEvents]       = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [modal, setModal]         = useState({ open: false, editMode: false, data: null });
-    const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, event: null, action: null });
-
-    const fetchEvents = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const res    = await api.get('/events');
-            const raw    = res.data.data || [];
-            const today  = getTodayStr();
-            // Urutan: Aktif → Belum Mulai (depan) → Selesai (lalu)
-            const rankOf = (e) => {
-                if (e.status === 'aktif')                          return 0;
-                if (e.status === 'selesai' && e.tanggal > today)   return 1;
-                return 2;
-            };
-            const sorted = [...raw].sort((a, b) => {
-                const rd = rankOf(a) - rankOf(b);
-                return rd !== 0 ? rd : new Date(b.tanggal) - new Date(a.tanggal);
-            });
-            setEvents(sorted);
-        } catch {
-            toast.error('Gagal memuat data event.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => { fetchEvents(); }, [fetchEvents]);
-
-    const closeConfirm = () => setConfirmDialog({ isOpen: false, event: null, action: null });
-
-    const executeToggle = async () => {
-        const { event } = confirmDialog;
-        const newStatus = event.status === 'aktif' ? 'selesai' : 'aktif';
-        closeConfirm();
-        try {
-            await api.patch(`/events/${event.id}`, { status: newStatus });
-            toast.success(newStatus === 'aktif'
-                ? `Event "${event.nama_event}" berhasil diaktifkan.`
-                : `Event "${event.nama_event}" dinonaktifkan.`);
-            fetchEvents();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Gagal mengubah status event.');
-        }
-    };
-
-    const executeDelete = async () => {
-        const { event } = confirmDialog;
-        closeConfirm();
-        try {
-            await api.delete(`/events/${event.id}`);
-            toast.success(`Event "${event.nama_event}" berhasil dihapus.`);
-            fetchEvents();
-        } catch (err) {
-            const msg    = err.response?.data?.message || '';
-            const status = err.response?.status;
-            if (status === 409 || msg.toLowerCase().includes('kunjungan') || msg.toLowerCase().includes('restrict')) {
-                toast.error('Event tidak dapat dihapus karena sudah memiliki data kunjungan. Nonaktifkan event sebagai gantinya.');
-            } else {
-                toast.error(msg || 'Gagal menghapus event.');
-            }
-        }
-    };
-
-    const handleConfirm = () => {
-        if (confirmDialog.action === 'toggle') executeToggle();
-        else if (confirmDialog.action === 'delete') executeDelete();
-    };
-
-    const getConfirmProps = () => {
-        const { event, action } = confirmDialog;
-        if (!event) return {};
-        if (action === 'toggle') {
-            const toActive     = event.status !== 'aktif';
-            const hasOtherActive = toActive && events.some(e => e.status === 'aktif' && e.id !== event.id);
-            const isPastDate   = toActive && event.tanggal < getTodayStr();
-            return {
-                title:        toActive ? 'Aktifkan Event' : 'Nonaktifkan Event',
-                message:      toActive
-                    ? isPastDate
-                        ? `Tanggal event ini (${event.tanggal}) sudah lewat. Sistem tetap bisa menerima tap NFC dan input manual setelah diaktifkan.${hasOtherActive ? ' Event lain yang sedang aktif akan otomatis dinonaktifkan.' : ''} Tetap aktifkan?`
-                        : hasOtherActive
-                            ? `Mengaktifkan event ini akan otomatis menonaktifkan event lain yang sedang aktif. Lanjutkan?`
-                            : `Event "${event.nama_event}" akan diaktifkan dan langsung menerima tap NFC serta input manual. Lanjutkan?`
-                    : `Event "${event.nama_event}" akan dinonaktifkan. Data kunjungan tetap tersimpan. Lanjutkan?`,
-                confirmLabel: toActive ? 'Ya, Aktifkan' : 'Ya, Nonaktifkan',
-                variant:      toActive ? 'warning' : 'danger',
-            };
-        }
-        return {
-            title:        'Hapus Event',
-            message:      `Event "${event.nama_event}" akan dihapus permanen. Penghapusan hanya berhasil jika belum ada data kunjungan. Lanjutkan?`,
-            confirmLabel: 'Ya, Hapus',
-            variant:      'danger',
-        };
-    };
-
-    const formatTanggal = (d) =>
-        new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-    const today         = getTodayStr();
-    const activeEvents  = events.filter(e => e.status === 'aktif');
-    const activeCount   = activeEvents.length;
-    const pendingCount  = events.filter(e => e.status === 'selesai' && e.tanggal > today).length;
-    const finishedCount = events.filter(e => e.status === 'selesai' && e.tanggal <= today).length;
-
-    return (
-        <div className="font-sans space-y-8">
-
-            <ConfirmDialog
-                isOpen={confirmDialog.isOpen}
-                onConfirm={handleConfirm}
-                onCancel={closeConfirm}
-                {...getConfirmProps()}
-            />
-
-            <EventFormModal
-                isOpen={modal.open}
-                isEditMode={modal.editMode}
-                initialData={modal.data}
-                activeEvents={activeEvents}
-                onClose={() => setModal({ open: false, editMode: false, data: null })}
-                onSuccess={fetchEvents}
-            />
-
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p className="text-xs text-gray-500 font-medium mb-1">Total Event</p>
-                    <p className="text-3xl font-bold text-gray-800">{events.length}</p>
-                </div>
-                <div className="bg-green-50 rounded-2xl border border-green-100 shadow-sm p-5">
-                    <p className="text-xs text-green-600 font-medium mb-1">Sedang Aktif</p>
-                    <div className="flex items-center justify-between">
-                        <p className="text-3xl font-bold text-green-700">{activeCount}</p>
-                        {activeCount > 0 && (
-                            <span className="flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Live
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <div className="bg-blue-50 rounded-2xl border border-blue-100 shadow-sm p-5">
-                    <p className="text-xs text-blue-600 font-medium mb-1">Belum Mulai</p>
-                    <p className="text-3xl font-bold text-blue-600">{pendingCount}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p className="text-xs text-gray-500 font-medium mb-1">Selesai</p>
-                    <p className="text-3xl font-bold text-gray-400">{finishedCount}</p>
-                </div>
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          <div>
+            <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Nama Event *</label>
+            <input value={form.nama} onChange={e => set('nama', e.target.value)} placeholder="Nama event"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Tanggal Mulai *</label>
+              <input type="date" value={form.tanggal} onChange={e => set('tanggal', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
             </div>
-
-            {/* Banner tidak ada event aktif */}
-            {!isLoading && activeCount === 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5"/>
-                    <div>
-                        <p className="text-sm font-bold text-amber-800">Tidak ada event aktif</p>
-                        <p className="text-xs text-amber-700 mt-0.5">
-                            Tap NFC dan input manual tidak berfungsi. Aktifkan event yang ada{pendingCount > 0 ? ' (tombol Aktifkan tersedia di hari pelaksanaan)' : ''}, atau buat event baru dengan tanggal hari ini.
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* Toolbar */}
-            <div className="flex justify-between items-center">
-                <h2 className="text-base font-bold text-gray-700">
-                    Daftar Semua Event <span className="ml-2 text-sm font-normal text-gray-400">({events.length})</span>
-                </h2>
-                <button
-                    onClick={() => setModal({ open: true, editMode: false, data: null })}
-                    className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-md shadow-green-200">
-                    <Plus size={16}/> Tambah Event
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Tanggal Selesai</label>
+              <input type="date" value={form.tanggal_selesai} onChange={e => set('tanggal_selesai', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">🕐 Jam Mulai *</label>
+              <input type="time" value={form.jam_mulai} onChange={e => set('jam_mulai', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+            </div>
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">🕐 Jam Selesai</label>
+              <input type="time" value={form.jam_selesai} onChange={e => set('jam_selesai', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Lokasi</label>
+              <input value={form.lokasi} onChange={e => set('lokasi', e.target.value)} placeholder="Nama tempat"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+            </div>
+            <div>
+              <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Kapasitas</label>
+              <input type="number" value={form.kapasitas} onChange={e => set('kapasitas', +e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition"/>
+            </div>
+          </div>
+          <div>
+            <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Status</label>
+            <select value={form.status} onChange={e => set('status', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition bg-white">
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="berlangsung">Berlangsung</option>
+              <option value="selesai">Selesai</option>
+            </select>
+          </div>
+          {/* Banner photo upload */}
+          <ImageUpload
+            value={form.banner_url}
+            onChange={v => set('banner_url', v)}
+            label="Foto Banner Event"
+            hint="JPG, PNG, WebP · maks 5 MB · disarankan 16:9"
+            shape="wide"
+          />
+          <div>
+            <label className="text-gray-600 text-xs font-semibold mb-1.5 block">Deskripsi Singkat</label>
+            <textarea value={form.deskripsi} onChange={e => set('deskripsi', e.target.value)} rows={2}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition resize-none"/>
+          </div>
+          <div>
+            <label className="text-gray-600 text-xs font-semibold mb-1.5 block flex items-center gap-1.5"><FileText size={12}/>Konten Lengkap</label>
+            <textarea value={form.konten_lengkap} onChange={e => set('konten_lengkap', e.target.value)} rows={4}
+              placeholder="Deskripsi detail, jadwal, informasi tambahan..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400 transition resize-none"/>
+          </div>
+          <div>
+            <label className="text-gray-600 text-xs font-semibold mb-2 block flex items-center gap-1.5"><Tag size={12}/>Subsektor Budaya</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SUBSEKTORS_ALL.map(s => (
+                <button key={s} type="button" onClick={() => toggleSub(s)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${(form.subsektor||[]).includes(s) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
+                  {s}
                 </button>
+              ))}
             </div>
-
-            {/* List */}
-            {isLoading ? (
-                <div className="flex justify-center py-20">
-                    <RefreshCw size={32} className="animate-spin text-green-600"/>
-                </div>
-            ) : events.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
-                    <Calendar size={48} className="mb-4 text-gray-300"/>
-                    <p className="font-medium">Belum ada event terdaftar</p>
-                    <p className="text-sm mt-1">Klik "Tambah Event" untuk membuat event pertama</p>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {events.map((event) => {
-                        const disp    = getEventDisplay(event);
-                        const isAktif = event.status === 'aktif';
-
-                        return (
-                            <div key={event.id}
-                                 className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition hover:shadow-md ${disp.cardBorder} ${disp.dim ? 'opacity-60' : ''}`}>
-
-                                {/* Info */}
-                                <div className="flex items-start gap-4 flex-1 min-w-0">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${disp.iconBg}`}>
-                                        <Calendar size={22} className={disp.iconCls}/>
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                                            <h3 className="font-bold text-gray-800 text-base leading-tight">{event.nama_event}</h3>
-                                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${disp.badgeCls}`}>
-                                                {disp.pulse && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/>}
-                                                {!disp.pulse && disp.badge === 'SELESAI' && <CheckCircle size={10}/>}
-                                                {disp.badge}
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-4">
-                                            <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                                <Clock size={12} className="shrink-0"/>{formatTanggal(event.tanggal)}
-                                            </span>
-                                            <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                                <MapPin size={12} className="shrink-0"/>{event.lokasi}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Aksi */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                    {/* Edit */}
-                                    <button
-                                        onClick={() => setModal({ open: true, editMode: true, data: event })}
-                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition bg-gray-100 text-gray-600 hover:bg-amber-50 hover:text-amber-700"
-                                        title="Edit event">
-                                        <Edit size={14}/><span className="hidden sm:inline">Edit</span>
-                                    </button>
-
-                                    {/* Toggle aktif / nonaktifkan */}
-                                    {isAktif ? (
-                                        <button
-                                            onClick={() => setConfirmDialog({ isOpen: true, event, action: 'toggle' })}
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition bg-red-50 text-red-600 hover:bg-red-100">
-                                            <XCircle size={14}/><span className="hidden sm:inline">Nonaktifkan</span>
-                                        </button>
-                                    ) : disp.canActivate ? (
-                                        /* Tombol Aktifkan hanya muncul jika tanggal sudah tiba */
-                                        <button
-                                            onClick={() => setConfirmDialog({ isOpen: true, event, action: 'toggle' })}
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition bg-green-50 text-green-700 hover:bg-green-100">
-                                            <ToggleLeft size={14}/><span className="hidden sm:inline">Aktifkan</span>
-                                        </button>
-                                    ) : (
-                                        /* Belum Mulai: tombol disabled dengan tooltip */
-                                        <div
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-gray-50 text-gray-300 cursor-not-allowed select-none"
-                                            title="Aktifkan hanya tersedia di hari pelaksanaan">
-                                            <Lock size={14}/><span className="hidden sm:inline">Aktifkan</span>
-                                        </div>
-                                    )}
-
-                                    {/* Hapus — hanya untuk event tidak aktif */}
-                                    {!isAktif && (
-                                        <button
-                                            onClick={() => setConfirmDialog({ isOpen: true, event, action: 'delete' })}
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                                            title="Hapus event (hanya jika belum ada data kunjungan)">
-                                            <Trash2 size={14}/>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+          </div>
         </div>
-    );
-};
 
-export default Events;
+        <div className="p-5 border-t border-gray-100 shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 transition">Batal</button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 bg-green-700 hover:bg-green-800 text-white py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2">
+            {saving ? <><Loader2 size={14} className="animate-spin"/>Menyimpan...</> : <><Save size={14}/>Simpan</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Events() {
+  const toast = useToast();
+  const [events, setEvents] = useState(DUMMY_EVENTS);
+  const [modal, setModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+
+  const openAdd  = () => { setEditItem(null); setModal(true); };
+  const openEdit = (e, ev) => { e.stopPropagation(); setEditItem({...ev}); setModal(true); };
+
+  const handleSave = (form) => {
+    if (editItem) {
+      setEvents(l => l.map(e => e.id === editItem.id ? {...e,...form} : e));
+      toast.success('Event diperbarui');
+    } else {
+      setEvents(l => [{ id:'e'+Date.now(), ...form, peserta:0 }, ...l]);
+      toast.success('Event dibuat');
+    }
+  };
+
+  const del = (e, id) => {
+    e.stopPropagation();
+    if (!confirm('Hapus event ini?')) return;
+    setEvents(l => l.filter(ev => ev.id !== id));
+    toast.success('Event dihapus');
+  };
+
+  const togglePublish = (e, id) => {
+    e.stopPropagation();
+    setEvents(l => l.map(ev => ev.id===id ? {...ev, status: ev.status==='published' ? 'draft' : 'published'} : ev));
+    const ev = events.find(ev => ev.id === id);
+    toast.success(ev?.status==='published' ? 'Event disembunyikan' : 'Event dipublikasikan');
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          ['Dipublikasi', events.filter(e=>e.status==='published').length, 'bg-green-50 text-green-700'],
+          ['Draft',       events.filter(e=>e.status==='draft').length,      'bg-gray-50 text-gray-600'],
+          ['Berlangsung', events.filter(e=>e.status==='berlangsung').length,'bg-blue-50 text-blue-600'],
+          ['Selesai',     events.filter(e=>e.status==='selesai').length,    'bg-yellow-50 text-yellow-700'],
+        ].map(([l,v,cls]) => (
+          <div key={l} className={`${cls} rounded-2xl p-4 border border-white/60`}>
+            <p className="text-2xl font-bold">{v}</p>
+            <p className="text-sm font-medium opacity-80 mt-0.5">{l}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-gray-500 text-sm">{events.length} total event</p>
+        <button onClick={openAdd}
+          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition">
+          <Plus size={16}/> Buat Event Baru
+        </button>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        {events.map(ev => (
+          <div key={ev.id} className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow
+            ${ev.status==='published' ? 'border-green-200' : ev.status==='berlangsung' ? 'border-blue-200' : 'border-gray-100'}`}>
+            <div className="w-full h-2 bg-gradient-to-r from-green-200 via-yellow-100 to-orange-100"/>
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-gray-800 text-sm leading-snug">{ev.nama}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_CLS[ev.status]}`}>{ev.status}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-gray-400 text-xs"><Calendar size={11}/>{fmtTgl(ev.tanggal)}{ev.tanggal_selesai && ev.tanggal_selesai !== ev.tanggal && ` — ${fmtTgl(ev.tanggal_selesai)}`}{ev.jam_mulai && ` · ${ev.jam_mulai.replace(':','.')}${ev.jam_selesai ? ` – ${ev.jam_selesai.replace(':','.')}` : ''} WIB`}</div>
+                  <div className="flex items-center gap-1 text-gray-400 text-xs mt-0.5"><MapPin size={11}/>{ev.lokasi}</div>
+                </div>
+              </div>
+              {ev.subsektor?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {ev.subsektor.slice(0,3).map(s => <span key={s} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] rounded font-medium">{s}</span>)}
+                  {ev.subsektor.length > 3 && <span className="text-gray-400 text-[10px]">+{ev.subsektor.length-3}</span>}
+                </div>
+              )}
+              <p className="text-gray-500 text-xs leading-relaxed line-clamp-2">{ev.deskripsi}</p>
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500 flex items-center gap-1"><Users size={11}/>{ev.peserta} / {ev.kapasitas} peserta</span>
+                  <span className="text-xs font-semibold text-green-700">{Math.round(ev.peserta/ev.kapasitas*100)}%</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 rounded-full" style={{width:`${Math.min(100,ev.peserta/ev.kapasitas*100)}%`}}/>
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-50 flex items-center justify-between gap-1.5">
+              <Link to={`/events/${ev.id}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-semibold transition">
+                <Settings size={12}/> Kelola
+              </Link>
+              <div className="flex items-center gap-1">
+                {ev.status !== 'selesai' && (
+                  <button onClick={(e) => togglePublish(e, ev.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition
+                      ${ev.status==='published' ? 'text-gray-500 hover:bg-gray-100' : 'text-green-700 hover:bg-green-50'}`}>
+                    {ev.status==='published' ? <><EyeOff size={13}/>Sembunyikan</> : <><Eye size={13}/>Publikasi</>}
+                  </button>
+                )}
+                <button onClick={(e) => openEdit(e, ev)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition"><Edit3 size={14}/></button>
+                <button onClick={(e) => del(e, ev.id)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"><Trash2 size={14}/></button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {modal && <EventFormModal editItem={editItem} onClose={() => setModal(false)} onSave={handleSave}/>}
+    </div>
+  );
+}
