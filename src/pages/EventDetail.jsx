@@ -8,8 +8,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import ZoneSelector from '../components/ZoneSelector';
-import ZoneEditor from '../components/ZoneEditor';
-import { getEventZones, saveEventZones, syncOccupiedFromTenants, getZoneStats } from '../lib/eventZones';
+import { getEventZones, saveEventZones, syncOccupiedFromTenants } from '../lib/eventZones';
 
 // ── DUMMY DATA ────────────────────────────────────────────────────────────────
 const DUMMY_EVENTS = {
@@ -396,8 +395,8 @@ export default function EventDetail() {
     const updatedTenants = [...tenants, { ...data, tenant_id: data.id }];
     setTenants(updatedTenants);
     // Sync occupied status in zones
-    if (eventId) {
-      const updatedZones = syncOccupiedFromTenants(eventId, updatedTenants.map(t=>({posisi_event:t.posisi_event})));
+    if (id) {
+      const updatedZones = syncOccupiedFromTenants(id, updatedTenants.map(t=>({posisi_event:t.posisi_event})));
       setZones(updatedZones);
     }
     toast.success(`${data.nama_usaha} berhasil di-assign ke event`);
@@ -508,18 +507,12 @@ export default function EventDetail() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {/* Tab bar */}
           <div className="flex border-b border-gray-100">
-            {[['members','Pekerja Kreatif'],['tenants','UMKM'],['zones','Kelola Zona']].map(([v,l]) => (
+            {[['members','Pekerja Kreatif'],['tenants','UMKM']].map(([v,l]) => (
               <button key={v} onClick={() => setActiveTab(v)}
                 className={`flex-1 py-3.5 text-sm font-semibold transition border-b-2 ${activeTab===v ? 'border-green-600 text-green-700 bg-green-50/50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                {l}{v !== 'zones' && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-500">
+                {l}<span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-500">
                     {v==='members' ? members.length : tenants.length}
                   </span>
-                )}{v === 'zones' && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-500">
-                    {zones.length}Z
-                  </span>
-                )}
               </button>
             ))}
           </div>
@@ -622,16 +615,7 @@ export default function EventDetail() {
             </div>
           )}
 
-          {/* Tab: Kelola Zona */}
-          {activeTab === 'zones' && (
-            <div className="p-5">
-              <ZoneEditor
-                eventId={eventId}
-                zones={zones}
-                onZonesChange={updated => setZones(updated)}
-              />
-            </div>
-          )}
+
         </div>
       </div>
 
