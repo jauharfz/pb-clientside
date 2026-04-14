@@ -1,4 +1,4 @@
-// Members.jsx — Kelola Pekerja Kreatif dengan tab drawer (Info, Event, Portofolio, Story)
+// Members.jsx — Kelola Kreator dengan tab drawer (Info, Event, Portofolio, Story)
 import React, { useState, useEffect } from 'react';
 import {
   Search, CheckCircle, XCircle, UserCheck, Users, MapPin, Eye,
@@ -416,7 +416,7 @@ export default function Members() {
     await new Promise(r=>setTimeout(r,600));
     const m = members.find(x=>x.id===id);
     setMembers(l => l.map(m => m.id===id ? {...m,status:'aktif'} : m));
-    toast.success('Pekerja Kreatif berhasil disetujui');
+    toast.success('Kreator berhasil disetujui');
     // Auto-notify member
     try {
       const { triggerMemberApproved } = await import('../lib/notifications');
@@ -575,7 +575,7 @@ export default function Members() {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/80">
-              {['Pekerja Kreatif','Subsektor / Kota','Status','Karya','Terdaftar','Aksi'].map(h => (
+              {['Kreator','Subsektor / Kota','Status','Karya','Terdaftar','Aksi'].map(h => (
                 <th key={h} className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -588,7 +588,7 @@ export default function Members() {
           </tbody>
         </table>
         <div className="px-5 py-3 border-t border-gray-50 text-xs text-gray-400 flex items-center justify-between">
-          <span>Menampilkan {filtered.length} dari {members.length} Pekerja Kreatif</span>
+          <span>Menampilkan {filtered.length} dari {members.length} Kreator</span>
           {filterEvent !== 'semua' && (
             <span className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg font-medium">
               🎪 {DUMMY_ALL_EVENTS.find(e=>e.id===filterEvent)?.nama}

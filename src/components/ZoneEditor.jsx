@@ -2,14 +2,13 @@
 // Self-contained: baca/tulis langsung ke eventZones lib, notif parent via onZonesChange()
 import React, { useState } from 'react';
 import { Plus, Trash2, Settings, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { addZone, removeZone, addStands, removeStand, resetToTemplate, ZONE_TEMPLATES } from '../lib/eventZones';
+import { addZone, removeZone, addStands, removeStand, getGlobalZones, saveGlobalZones } from '../lib/eventZones';
 
-const PRESETS = ['#8B5E3C','#D97706','#7C3AED','#1D4ED8','#065F46','#9D174D','#374151','#B45309'];
+const WARNA_PRESETS = ['#8B5E3C','#D97706','#7C3AED','#1D4ED8','#065F46','#9D174D','#374151','#B45309','#1e5c3a','#c48930'];
 
 export default function ZoneEditor({ zones = [], onZonesChange }) {
   const [expanded, setExpanded] = useState(null);
   const [showAdd,  setShowAdd]  = useState(false);
-  const [showTmpl, setShowTmpl] = useState(false);
   const [addCount, setAddCount] = useState({});
   const [nz, setNz] = useState({ zona: '', label: '', warna: '#374151', kapasitas: 6 });
 
@@ -50,10 +49,7 @@ export default function ZoneEditor({ zones = [], onZonesChange }) {
     try { removeStand(standId); refresh(); } catch {}
   };
 
-  const handleTemplate = (key) => {
-    if (!confirm(`Reset ke template "${key}"? Layout sekarang diganti.`)) return;
-    try { resetToTemplate(key); setShowTmpl(false); refresh(); } catch {}
-  };
+
 
   return (
     <div className="space-y-4">
@@ -67,9 +63,20 @@ export default function ZoneEditor({ zones = [], onZonesChange }) {
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400 font-medium">{safe.length} zona · {totalStands} stand total</p>
         <div className="flex gap-2">
-          <button onClick={() => setShowTmpl(p=>!p)}
-            className="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition">
-            <Settings size={11}/> Template
+          <button onClick={() => {
+              if (confirm('Reset ke layout default (4 zona festival)? Konfigurasi saat ini akan diganti.')) {
+                saveGlobalZones([
+                  { zona:'A', label:'Zona A – Kriya & Fashion', warna:'#8B5E3C', stands: Array.from({length:8},(_,i)=>({id:`A-${i+1}`})) },
+                  { zona:'B', label:'Zona B – Kuliner',         warna:'#D97706', stands: Array.from({length:10},(_,i)=>({id:`B-${i+1}`})) },
+                  { zona:'C', label:'Zona C – Seni & Pertunjukan', warna:'#7C3AED', stands: Array.from({length:4},(_,i)=>({id:`C-${i+1}`})) },
+                  { zona:'P', label:'Zona P – Panggung',        warna:'#1D4ED8', stands: Array.from({length:2},(_,i)=>({id:`P-${i+1}`})) },
+                ]);
+                refresh();
+              }
+            }}
+            className="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition"
+            title="Reset ke 4-zona layout festival default">
+            <Settings size={11}/> Reset Default
           </button>
           <button onClick={() => setShowAdd(p=>!p)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs font-semibold transition">
@@ -78,24 +85,7 @@ export default function ZoneEditor({ zones = [], onZonesChange }) {
         </div>
       </div>
 
-      {/* Template picker */}
-      {showTmpl && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-          <p className="text-xs font-bold text-gray-600 mb-2">Pilih Template</p>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(ZONE_TEMPLATES).map(([k, t]) => (
-              <button key={k} onClick={() => handleTemplate(k)}
-                className="bg-white border border-gray-200 rounded-xl p-2.5 text-left hover:border-green-400 transition">
-                <p className="text-xs font-bold text-gray-800 capitalize">{k}</p>
-                <p className="text-[10px] text-gray-400">{t.length} zona · {t.reduce((n,z)=>n+(z.kapasitas||0),0)} stand</p>
-                <div className="flex gap-1 mt-1.5 flex-wrap">
-                  {t.map(z=><span key={z.zona} className="text-[8px] font-bold px-1 py-0.5 rounded text-white" style={{background:z.warna}}>{z.zona}</span>)}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* Add zone form */}
       {showAdd && (
@@ -124,10 +114,10 @@ export default function ZoneEditor({ zones = [], onZonesChange }) {
           <div>
             <label className="text-[10px] font-semibold text-gray-400 mb-1 block">Warna</label>
             <div className="flex gap-1.5 flex-wrap items-center">
-              {PRESETS.map(w=>(
+              {WARNA_PRESETS.map(w=>(
                 <button key={w} onClick={()=>setNz(p=>({...p,warna:w}))}
                   className={`w-6 h-6 rounded-md border-2 transition ${nz.warna===w?'border-gray-700 scale-110':'border-transparent hover:scale-105'}`}
-                  style={{background:w}}/>
+                  style={{background:w}} title={w}/>
               ))}
               <input type="color" value={nz.warna} onChange={e=>setNz(p=>({...p,warna:e.target.value}))}
                 className="w-6 h-6 rounded-md cursor-pointer border border-gray-200 p-0.5"/>

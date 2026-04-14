@@ -48,7 +48,7 @@ export default function Profile() {
                 boxShadow: '0 18px 40px rgba(15,23,42,0.08)',
                 textAlign: 'center',
             }}>
-                <img src={logoImg} alt="Logo Pekan Banyumasan" style={{
+                <img src={logoImg} alt="Logo Peken Banyumasan" style={{
                     width: '52px',
                     height: '52px',
                     borderRadius: '16px',

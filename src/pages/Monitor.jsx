@@ -279,9 +279,9 @@ const Monitor = () => {
                 {/* ══ HEADER ══════════════════════════════════════════════ */}
                 <header style={{ ...BASE.header, ...t.header }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(0.75rem,1.5vw,1.25rem)', minWidth: 0 }}>
-                        <img src={logoImg} alt="Logo Pekan Banyumasan" style={{ ...BASE.logo, ...t.logo, objectFit: 'cover', background: 'none', boxShadow: t.logo?.boxShadow }} />
+                        <img src={logoImg} alt="Logo Peken Banyumasan" style={{ ...BASE.logo, ...t.logo, objectFit: 'cover', background: 'none', boxShadow: t.logo?.boxShadow }} />
                         <div style={{ minWidth: 0 }}>
-                            <div style={{ ...BASE.brandName, ...t.brandName }}>Pekan Banyumasan</div>
+                            <div style={{ ...BASE.brandName, ...t.brandName }}>Peken Banyumasan</div>
                             {stats?.nama_event   && <div style={{ ...BASE.eventName, ...t.eventName }}>{stats.nama_event}</div>}
                             {error === 'no_event' && <div style={{ ...BASE.eventName, color: '#fbbf24' }}>Tidak ada event aktif</div>}
                             {error === 'network'  && <div style={{ ...BASE.eventName, color: '#f87171' }}>Gagal terhubung ke server</div>}

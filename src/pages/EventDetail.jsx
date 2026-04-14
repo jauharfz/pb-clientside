@@ -105,7 +105,7 @@ function AssignMemberModal({ onClose, onAssign, existingIds }) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800">Assign Pekerja Kreatif</h3>
+          <h3 className="font-bold text-gray-800">Assign Kreator</h3>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600"/></button>
         </div>
         <div className="p-5 space-y-4">
@@ -453,7 +453,7 @@ export default function EventDetail() {
           {/* Tab bar */}
           <div className="flex border-b border-gray-100">
             {[
-              { v:'members', l:'Pekerja Kreatif', n:members.length },
+              { v:'members', l:'Kreator', n:members.length },
               { v:'tenants', l:'UMKM',            n:tenants.length },
               { v:'zones',   l:'Kelola Zona',     n:zones.length   },
             ].map(({ v, l, n }) => (
@@ -465,11 +465,11 @@ export default function EventDetail() {
             ))}
           </div>
 
-          {/* ── Tab: Pekerja Kreatif ── */}
+          {/* ── Tab: Kreator ── */}
           {tab === 'members' && (
             <div>
               <div className="px-5 py-4 flex items-center justify-between border-b border-gray-50">
-                <p className="text-sm text-gray-500">{members.length} pekerja kreatif</p>
+                <p className="text-sm text-gray-500">{members.length} kreator</p>
                 <button onClick={()=>setShowAddM(true)}
                   className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition">
                   <Plus size={13}/> Assign
@@ -477,7 +477,7 @@ export default function EventDetail() {
               </div>
               {members.length === 0
                 ? <div className="py-16 text-center text-gray-400 text-sm">
-                    <Users size={32} className="text-gray-200 mx-auto mb-3"/>Belum ada pekerja kreatif
+                    <Users size={32} className="text-gray-200 mx-auto mb-3"/>Belum ada kreator
                   </div>
                 : <div className="divide-y divide-gray-50">
                     {members.map(m=>(

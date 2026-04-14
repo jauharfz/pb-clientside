@@ -98,7 +98,7 @@ const AdminLayout = () => {
 
     const allNavItems = [
         { path: '/',         label: 'Dashboard',       icon: PieChart,  roles: ['admin', 'petugas'] },
-        { path: '/members',  label: 'Pekerja Kreatif', icon: Users,     roles: ['admin'] },
+        { path: '/members',  label: 'Kreator', icon: Users,     roles: ['admin'] },
         { path: '/tenants',  label: 'Tenant UMKM',     icon: Store,     roles: ['admin'], badge: pendingUmkmCount },
         { path: '/reports',  label: 'Laporan',         icon: FileText,  roles: ['admin'] },
         { path: '/events',   label: 'Kelola Event',    icon: Calendar,  roles: ['admin'] },
@@ -127,14 +127,14 @@ const AdminLayout = () => {
     const getPageInfo = () => {
         switch (location.pathname) {
             case '/':         return { title: 'Dashboard Real-time',  subtitle: 'Pantau pergerakan pengunjung event hari ini' };
-            case '/members':  return { title: 'Pekerja Kreatif',      subtitle: 'Kelola dan verifikasi pegiat kebudayaan Pekenbanyumas' };
+            case '/members':  return { title: 'Kreator',      subtitle: 'Kelola dan verifikasi pegiat kebudayaan Peken Banyumasan' };
             case '/tenants':  return { title: 'Tenant & Revenue Sharing', subtitle: 'Kelola UMKM, set posisi, persentase komisi, dan monitoring revenue' };
             case '/reports':  return { title: 'Laporan Kunjungan',    subtitle: 'Rekapitulasi data pengunjung selama event' };
-            case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Pekan Banyumasan' };
+            case '/events':   return { title: 'Kelola Event',         subtitle: 'Buat, aktifkan, dan nonaktifkan event Peken Banyumasan' };
             case '/settings': return { title: 'Pengaturan Akun',      subtitle: 'Kelola nama tampilan dan password akun Anda' };
             default:
-                if (location.pathname.startsWith('/events/')) return { title: 'Detail Event', subtitle: 'Kelola relasi pekerja kreatif & UMKM di event ini' };
-                return { title: 'Sistem Admin',         subtitle: 'Pekan Banyumasan' };
+                if (location.pathname.startsWith('/events/')) return { title: 'Detail Event', subtitle: 'Kelola relasi kreator & UMKM di event ini' };
+                return { title: 'Sistem Admin',         subtitle: 'Peken Banyumasan' };
         }
     };
 
@@ -172,7 +172,7 @@ const AdminLayout = () => {
                 {/* Logo */}
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between md:justify-start gap-3">
                     <div className="flex items-center gap-3">
-                        <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-10 h-10 rounded-lg object-cover" />
+                        <img src={logoImg} alt="Logo Peken Banyumasan" className="w-10 h-10 rounded-lg object-cover" />
                         <div>
                             <h2 className="text-lg font-bold text-gray-800 leading-tight">Pekan</h2>
                             <p className="text-xs text-gray-500 font-medium">Banyumasan</p>

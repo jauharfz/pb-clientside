@@ -47,7 +47,7 @@ const Login = () => {
                 <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -ml-20 -mb-20"></div>
 
                 <div className="relative z-10 flex items-center gap-3">
-                    <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-12 h-12 rounded-xl object-cover shadow-lg" />
+                    <img src={logoImg} alt="Logo Peken Banyumasan" className="w-12 h-12 rounded-xl object-cover shadow-lg" />
                     <div>
                         <h1 className="text-2xl font-bold text-white tracking-wide"> Banyumasan</h1>
                         <p className="text-green-200 text-sm font-medium">Sistem Manajemen Event</p>
@@ -57,12 +57,12 @@ const Login = () => {
                 <div className="relative z-10 max-w-md">
                     <h2 className="text-4xl font-bold text-white mb-6 leading-tight">Kelola pengunjung event dengan lebih cerdas.</h2>
                     <p className="text-green-100 text-lg leading-relaxed">
-                        Pantau data real-time, kelola member NFC, dan optimalkan operasional event Pekan Banyumasan dalam satu platform terintegrasi.
+                        Pantau data real-time, kelola member NFC, dan optimalkan operasional event Peken Banyumasan dalam satu platform terintegrasi.
                     </p>
                 </div>
 
                 <div className="relative z-10 text-green-200 text-sm">
-                    &copy; 2026 Panitia Pekan Banyumasan. All rights reserved.
+                    &copy; 2026 Panitia Peken Banyumasan. All rights reserved.
                 </div>
             </div>
 
@@ -76,8 +76,8 @@ const Login = () => {
 
                 <div className="w-full max-w-md">
                     <div className="flex lg:hidden items-center gap-3 mb-10">
-                        <img src={logoImg} alt="Logo Pekan Banyumasan" className="w-10 h-10 rounded-lg object-cover shadow-md" />
-                        <h1 className="text-xl font-bold text-gray-900 tracking-wide">Pekan Banyumasan</h1>
+                        <img src={logoImg} alt="Logo Peken Banyumasan" className="w-10 h-10 rounded-lg object-cover shadow-md" />
+                        <h1 className="text-xl font-bold text-gray-900 tracking-wide">Peken Banyumasan</h1>
                     </div>
 
                     <div className="mb-10">

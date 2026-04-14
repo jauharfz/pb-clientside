@@ -438,14 +438,19 @@ export default function Tenants() {
     toast.success('Data tenant diperbarui');
   };
 
+  // Count events per tenant from DUMMY_TENANT_EVENTS
+  const eventCountForTenant = (tid) => Object.values(DUMMY_TENANT_EVENTS)
+    .flat().filter(e => e.tenant_id === tid || e.id?.startsWith(tid)).length;
+
   const SORT_FNS = {
-    newest:      (a,b) => new Date(b.tanggal_daftar)-new Date(a.tanggal_daftar),
-    oldest:      (a,b) => new Date(a.tanggal_daftar)-new Date(b.tanggal_daftar),
-    name_asc:    (a,b) => a.nama_usaha.localeCompare(b.nama_usaha),
-    name_desc:   (a,b) => b.nama_usaha.localeCompare(a.nama_usaha),
-    most_revenue:(a,b) => (b.total_penjualan||0)-(a.total_penjualan||0),
-    most_komisi: (a,b) => (b.komisi_terkumpul||0)-(a.komisi_terkumpul||0),
-    komisi_rate: (a,b) => (b.komisi_persen||0)-(a.komisi_persen||0),
+    newest:       (a,b) => new Date(b.tanggal_daftar)-new Date(a.tanggal_daftar),
+    oldest:       (a,b) => new Date(a.tanggal_daftar)-new Date(b.tanggal_daftar),
+    name_asc:     (a,b) => a.nama_usaha.localeCompare(b.nama_usaha),
+    name_desc:    (a,b) => b.nama_usaha.localeCompare(a.nama_usaha),
+    most_events:  (a,b) => eventCountForTenant(b.id)-eventCountForTenant(a.id),
+    most_revenue: (a,b) => (b.total_penjualan||0)-(a.total_penjualan||0),
+    most_komisi:  (a,b) => (b.komisi_terkumpul||0)-(a.komisi_terkumpul||0),
+    komisi_rate:  (a,b) => (b.komisi_persen||0)-(a.komisi_persen||0),
   };
 
   const tenantIdsInEvent = (eventId) =>
@@ -535,6 +540,7 @@ export default function Tenants() {
                   <option value="oldest">Terlama Daftar</option>
                   <option value="name_asc">Nama A–Z</option>
                   <option value="name_desc">Nama Z–A</option>
+                  <option value="most_events">Paling Banyak Event</option>
                   <option value="most_revenue">Revenue Tertinggi</option>
                   <option value="most_komisi">Komisi Terbanyak</option>
                   <option value="komisi_rate">Tarif Komisi ↓</option>

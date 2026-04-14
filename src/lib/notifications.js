@@ -104,7 +104,7 @@ export const triggerMemberApproved = (memberNama) =>
   addNotif('member', {
     type: NotifType.MEMBER_APPROVED,
     title: 'Akun Diverifikasi ✅',
-    message: `Selamat ${memberNama}! Akun Pekerja Kreatif kamu telah diverifikasi admin. Profil kamu kini tampil di direktori publik.`,
+    message: `Selamat ${memberNama}! Akun Kreator kamu telah diverifikasi admin. Profil kamu kini tampil di direktori publik.`,
     link: '/dashboard/profil',
   });
 
@@ -144,7 +144,7 @@ export const triggerNewMemberRequest = (memberNama) =>
   addNotif('admin', {
     type: NotifType.NEW_MEMBER_REQUEST,
     title: 'Pendaftaran Member Baru 👤',
-    message: `${memberNama} mendaftar sebagai Pekerja Kreatif. Perlu verifikasi.`,
+    message: `${memberNama} mendaftar sebagai Kreator. Perlu verifikasi.`,
     link: '/members',
   });
 

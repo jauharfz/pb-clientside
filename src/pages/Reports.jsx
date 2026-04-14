@@ -4,7 +4,7 @@ import {
     ChevronDown, FileSpreadsheet, FileText,
     ArrowRight, ArrowLeft, IdCard, User,
     Download, AlertTriangle, X, Loader2,
-    Users, TrendingUp, UserCheck, Info
+    Users, TrendingUp, UserCheck, Info, Store, BarChart2, CalendarDays
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -22,6 +22,9 @@ const fmtTanggal = (s) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', 
 
 const Reports = () => {
     // ── Events list (untuk primary selector) ─────────────────────────────
+    // ── Report tab ───────────────────────────────────────────────────────────
+    const [reportTab, setReportTab] = useState('pengunjung'); // pengunjung | tenant | akumulasi
+
     const [events, setEvents]             = useState([]);
     const [isLoadingEvents, setLoadingEv] = useState(true);
 
@@ -183,7 +186,25 @@ const Reports = () => {
     };
 
     return (
-        <div className="font-sans h-full flex flex-col relative space-y-6">
+        <div className="font-sans h-full flex flex-col relative space-y-4">
+
+          {/* ── Report Tab Bar ── */}
+          <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1 shadow-sm self-start">
+            {[
+              { v:'pengunjung', l:'Laporan Pengunjung', Icon:Users },
+              { v:'tenant',     l:'Laporan UMKM',       Icon:Store },
+              { v:'akumulasi',  l:'Akumulasi Event',    Icon:BarChart2 },
+            ].map(({ v, l, Icon }) => (
+              <button key={v} onClick={() => setReportTab(v)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${reportTab===v ? 'bg-green-700 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <Icon size={14}/>{l}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Tab: Pengunjung (existing) ── */}
+          {reportTab === 'pengunjung' && (
+          <div className="flex flex-col gap-6 flex-1">
 
             {/* RINGKASAN STATISTIK */}
             {reportData?.ringkasan && (
@@ -646,8 +667,192 @@ const Reports = () => {
                     </div>
                 </div>
             )}
+          </div>
+          )} {/* end pengunjung tab */}
+
+          {/* ── Tab: Laporan UMKM ── */}
+          {reportTab === 'tenant' && <TenantReport events={events} isLoadingEvents={isLoadingEvents}/>}
+
+          {/* ── Tab: Akumulasi Event ── */}
+          {reportTab === 'akumulasi' && <AccumulationReport events={events}/>}
+
         </div>
     );
 };
+// ── Tenant Report Tab ─────────────────────────────────────────────────────────
+const DEMO_TENANT_REPORT = [
+  { id:'t1', nama:'Batik Sari Rahayu',    kategori:'Kriya & Fashion', omset:4850000, komisi_persen:15, transaksi:42, event_count:3, stand_terakhir:'A-3' },
+  { id:'t2', nama:'Keripik Tempe Mrisi',  kategori:'Kuliner',         omset:2340000, komisi_persen:15, transaksi:98, event_count:2, stand_terakhir:'B-2' },
+  { id:'t3', nama:'Calung Mas',           kategori:'Seni Pertunjukan',omset:1200000, komisi_persen:10, transaksi:24, event_count:4, stand_terakhir:'C-1' },
+  { id:'t4', nama:'Tenun Lurik Cilacap',  kategori:'Kriya & Fashion', omset:3650000, komisi_persen:15, transaksi:31, event_count:2, stand_terakhir:'A-5' },
+  { id:'t5', nama:'Dawet Ayu Bu Tari',    kategori:'Kuliner',         omset:1980000, komisi_persen:12, transaksi:76, event_count:3, stand_terakhir:'B-7' },
+  { id:'t6', nama:'Anyam Bambu Banyumas', kategori:'Kriya & Fashion', omset:890000,  komisi_persen:15, transaksi:15, event_count:1, stand_terakhir:'A-2' },
+];
+const fmtRp = n => `Rp ${(n||0).toLocaleString('id-ID')}`;
+
+function TenantReport({ events = [], isLoadingEvents }) {
+  const [selEvent, setSelEvent] = React.useState('');
+  const [sortBy,   setSortBy]   = React.useState('omset');
+  const [search,   setSearch]   = React.useState('');
+
+  const data = React.useMemo(() => DEMO_TENANT_REPORT
+    .filter(t => !search || t.nama.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b) => {
+      if (sortBy==='omset')     return b.omset - a.omset;
+      if (sortBy==='komisi')    return (b.omset*b.komisi_persen/100) - (a.omset*a.komisi_persen/100);
+      if (sortBy==='transaksi') return b.transaksi - a.transaksi;
+      if (sortBy==='event')     return b.event_count - a.event_count;
+      return a.nama.localeCompare(b.nama);
+    }), [sortBy, search]);
+
+  const totalOmset  = data.reduce((s,t)=>s+t.omset,0);
+  const totalKomisi = data.reduce((s,t)=>s+Math.round(t.omset*t.komisi_persen/100),0);
+  const totalTrx    = data.reduce((s,t)=>s+t.transaksi,0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label:'Total Omset UMKM', value:fmtRp(totalOmset), cls:'text-green-700', bg:'bg-green-100' },
+          { label:'Total Komisi Masuk', value:fmtRp(totalKomisi), cls:'text-amber-700', bg:'bg-amber-100' },
+          { label:'Total Transaksi', value:totalTrx+' trx', cls:'text-blue-700', bg:'bg-blue-100' },
+        ].map(s=>(
+          <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.bg}`}>
+              <Store size={18} className={s.cls}/>
+            </div>
+            <div><div className={`text-xl font-bold ${s.cls}`}>{s.value}</div><div className="text-xs text-gray-500">{s.label}</div></div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3 items-center">
+        <select value={selEvent} onChange={e=>setSelEvent(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 bg-gray-50 focus:outline-none focus:border-green-400">
+          <option value="">Semua Event</option>
+          {events.map(e=><option key={e.id} value={e.id}>{e.nama_event||e.nama||'Event'}</option>)}
+        </select>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama usaha..."
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 w-48"/>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Urutkan:</span>
+          <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 bg-gray-50 focus:outline-none focus:border-green-400">
+            <option value="omset">Omset Tertinggi</option>
+            <option value="komisi">Komisi Terbesar</option>
+            <option value="transaksi">Transaksi Terbanyak</option>
+            <option value="event">Paling Sering Ikut</option>
+            <option value="nama">Nama A–Z</option>
+          </select>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-auto">
+        <table className="w-full text-left text-sm min-w-[700px]">
+          <thead><tr className="border-b border-gray-100 bg-gray-50/80">
+            {['UMKM','Kategori','Omset','Komisi','Netto','Trx','Event'].map(h=>(
+              <th key={h} className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {data.map(t => {
+              const k = Math.round(t.omset*t.komisi_persen/100);
+              return (
+                <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                  <td className="px-4 py-3"><p className="font-semibold text-gray-800">{t.nama}</p><p className="text-xs text-gray-400">{t.stand_terakhir}</p></td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{t.kategori}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{fmtRp(t.omset)}</td>
+                  <td className="px-4 py-3 text-red-500 text-xs">−{fmtRp(k)} <span className="text-gray-400">({t.komisi_persen}%)</span></td>
+                  <td className="px-4 py-3 text-green-700 font-bold">{fmtRp(t.omset-k)}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.transaksi}</td>
+                  <td className="px-4 py-3"><span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">{t.event_count}×</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot><tr className="bg-gray-50 border-t border-gray-200">
+            <td className="px-4 py-3 font-bold text-gray-600 text-sm" colSpan={2}>Total ({data.length} UMKM)</td>
+            <td className="px-4 py-3 font-bold text-gray-800">{fmtRp(totalOmset)}</td>
+            <td className="px-4 py-3 font-bold text-red-500">−{fmtRp(totalKomisi)}</td>
+            <td className="px-4 py-3 font-bold text-green-700">{fmtRp(totalOmset-totalKomisi)}</td>
+            <td className="px-4 py-3 font-bold text-gray-800">{totalTrx}</td>
+            <td/>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Accumulation Report Tab ───────────────────────────────────────────────────
+const DEMO_ACCUM = [
+  { id:'e1', nama:'Festival Budaya Banyumasan 2025', tanggal:'2025-05-17', status:'mendatang', pengunjung:0, member_hadir:0, umkm_count:8, kreator_count:12, omset_umkm:0, komisi:0 },
+  { id:'e2', nama:'Workshop Batik & Tenun Nusantara', tanggal:'2025-04-26', status:'mendatang', pengunjung:0, member_hadir:0, umkm_count:3, kreator_count:5,  omset_umkm:0, komisi:0 },
+  { id:'e4', nama:'Peken Banyumasan #12', tanggal:'2025-03-20', status:'selesai', pengunjung:1247, member_hadir:89, umkm_count:24, kreator_count:18, omset_umkm:28450000, komisi:4267500 },
+];
+
+function AccumulationReport({ events = [] }) {
+  const data    = DEMO_ACCUM;
+  const selesai = data.filter(e=>e.status==='selesai');
+  const totP = selesai.reduce((s,e)=>s+e.pengunjung,0);
+  const totO = selesai.reduce((s,e)=>s+e.omset_umkm,0);
+  const totK = selesai.reduce((s,e)=>s+e.komisi,0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label:'Event Selesai', value:selesai.length+' event', cls:'text-gray-700' },
+          { label:'Total Pengunjung', value:totP.toLocaleString('id-ID'), cls:'text-green-700' },
+          { label:'Total Omset UMKM', value:fmtRp(totO), cls:'text-amber-700' },
+          { label:'Komisi Terkumpul', value:fmtRp(totK), cls:'text-blue-700' },
+        ].map(s=>(
+          <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className={`text-2xl font-bold ${s.cls}`}>{s.value}</div>
+            <div className="text-xs text-gray-500 mt-1">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-auto">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          <CalendarDays size={15} className="text-green-600"/>
+          <p className="font-bold text-gray-800 text-sm">Ringkasan Per Event</p>
+        </div>
+        <table className="w-full text-left text-sm min-w-[800px]">
+          <thead><tr className="border-b border-gray-100 bg-gray-50/80">
+            {['Event','Tanggal','Pengunjung','Kreator','UMKM','Omset UMKM','Komisi','Status'].map(h=>(
+              <th key={h} className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {data.map(e=>(
+              <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                <td className="px-4 py-3 font-semibold text-gray-800 max-w-[180px]"><p className="truncate">{e.nama}</p></td>
+                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(e.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}</td>
+                <td className="px-4 py-3 font-semibold text-gray-800">{e.pengunjung?e.pengunjung.toLocaleString('id-ID'):'—'}</td>
+                <td className="px-4 py-3 text-gray-600">{e.kreator_count}</td>
+                <td className="px-4 py-3 text-gray-600">{e.umkm_count}</td>
+                <td className="px-4 py-3 text-gray-700">{e.omset_umkm?fmtRp(e.omset_umkm):'—'}</td>
+                <td className="px-4 py-3 text-green-700 font-medium">{e.komisi?fmtRp(e.komisi):'—'}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${e.status==='selesai'?'bg-green-50 text-green-700':'bg-yellow-50 text-yellow-700'}`}>{e.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {selesai.length>0 && (
+            <tfoot><tr className="bg-gray-50 border-t border-gray-200">
+              <td className="px-4 py-3 font-bold text-gray-600 text-sm" colSpan={2}>Total (selesai)</td>
+              <td className="px-4 py-3 font-bold text-gray-800">{totP.toLocaleString('id-ID')}</td>
+              <td className="px-4 py-3 font-bold text-gray-800">{selesai.reduce((s,e)=>s+e.kreator_count,0)}</td>
+              <td className="px-4 py-3 font-bold text-gray-800">{selesai.reduce((s,e)=>s+e.umkm_count,0)}</td>
+              <td className="px-4 py-3 font-bold text-amber-700">{fmtRp(totO)}</td>
+              <td className="px-4 py-3 font-bold text-green-700">{fmtRp(totK)}</td>
+              <td/>
+            </tr></tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default Reports;
