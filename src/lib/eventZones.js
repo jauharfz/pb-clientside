@@ -11,9 +11,10 @@
 // This means admin sets up zones once, then just assigns stands per event.
 // Admin can still edit the global layout at any time.
 
-const GLOBAL_KEY  = 'pekan_zones_global';
-const OCC_PREFIX  = 'pekan_occupied_';
-const UPDATE_EVT  = 'pekan_zones_update';
+const GLOBAL_KEY    = 'pekan_zones_global';
+const OVERRIDE_KEY  = 'pekan_zones_default_override'; // Admin-saved permanent default
+const OCC_PREFIX    = 'pekan_occupied_';
+const UPDATE_EVT    = 'pekan_zones_update';
 
 // ── Default global layout ─────────────────────────────────────────────────────
 export const DEFAULT_GLOBAL_ZONES = [
@@ -60,8 +61,32 @@ export function getGlobalZones() {
   try {
     const raw = localStorage.getItem(GLOBAL_KEY);
     if (raw) return JSON.parse(raw);
+    // Fall back to admin-saved default, then hardcoded default
+    const override = localStorage.getItem(OVERRIDE_KEY);
+    if (override) return JSON.parse(override);
   } catch {}
   return DEFAULT_GLOBAL_ZONES;
+}
+
+/**
+ * Save current layout as the permanent venue default.
+ * Future events (and any event without a saved layout) will inherit this.
+ */
+export function saveAsVenueDefault(zones) {
+  try {
+    const clean = zones.map(z => ({
+      zona: z.zona, label: z.label, warna: z.warna,
+      stands: z.stands.map(s => ({ id: s.id })),
+    }));
+    localStorage.setItem(OVERRIDE_KEY, JSON.stringify(clean));
+    window.dispatchEvent(new CustomEvent(UPDATE_EVT));
+    return true;
+  } catch { return false; }
+}
+
+/** Check if admin has saved a custom venue default */
+export function hasVenueDefault() {
+  return !!localStorage.getItem(OVERRIDE_KEY);
 }
 
 /** Save the global zone layout */

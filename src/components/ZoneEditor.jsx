@@ -2,14 +2,15 @@
 // Self-contained: baca/tulis langsung ke eventZones lib, notif parent via onZonesChange()
 import React, { useState } from 'react';
 import { Plus, Trash2, Settings, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { addZone, removeZone, addStands, removeStand, getGlobalZones, saveGlobalZones } from '../lib/eventZones';
+import { addZone, removeZone, addStands, removeStand, getGlobalZones, saveGlobalZones, saveAsVenueDefault, hasVenueDefault } from '../lib/eventZones';
 
 const WARNA_PRESETS = ['#8B5E3C','#D97706','#7C3AED','#1D4ED8','#065F46','#9D174D','#374151','#B45309','#1e5c3a','#c48930'];
 
 export default function ZoneEditor({ zones = [], onZonesChange }) {
   const [expanded, setExpanded] = useState(null);
   const [showAdd,  setShowAdd]  = useState(false);
-  const [addCount, setAddCount] = useState({});
+  const [addCount,    setAddCount]    = useState({});
+  const [isSaved,     setIsSaved]     = useState(false);
   const [nz, setNz] = useState({ zona: '', label: '', warna: '#374151', kapasitas: 6 });
 
   // Defensive: normalize zones
@@ -77,6 +78,20 @@ export default function ZoneEditor({ zones = [], onZonesChange }) {
             className="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition"
             title="Reset ke 4-zona layout festival default">
             <Settings size={11}/> Reset Default
+          </button>
+          <button onClick={() => {
+              if (!confirm('Simpan layout ini sebagai default venue permanen?\nSemua event baru akan otomatis menggunakan layout ini.')) return;
+              const ok = saveAsVenueDefault(zones);
+              if (ok) setIsSaved(true);
+              setTimeout(() => setIsSaved(false), 2500);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              isSaved
+                ? 'bg-green-100 text-green-700 border border-green-200'
+                : 'bg-green-700 hover:bg-green-800 text-white'
+            }`}
+            title="Simpan layout saat ini sebagai default untuk semua event baru">
+            {isSaved ? '✓ Tersimpan!' : '⭐ Jadikan Default Venue'}
           </button>
           <button onClick={() => setShowAdd(p=>!p)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs font-semibold transition">

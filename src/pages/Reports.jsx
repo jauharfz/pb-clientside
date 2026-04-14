@@ -583,90 +583,20 @@ const Reports = () => {
             </div>
 
             {/* MODAL EXPORT */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-
-                        <div className="bg-green-700 p-5 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white">
-                                    <Download size={20} />
-                                </div>
-                                <div className="text-white">
-                                    <h3 className="font-bold text-lg leading-tight">Konfirmasi Export</h3>
-                                    <p className="text-green-100 text-xs">Laporan Kunjungan Event</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-green-200 hover:text-white transition">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div className="p-6">
-                            <p className="text-gray-600 text-sm mb-4">
-                                Anda akan mengunduh data laporan dengan detail berikut:
-                            </p>
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-6 space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Format File:</span>
-                                    <span className="font-bold text-gray-800">{exportFormat} Document</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Event:</span>
-                                    <span className="font-bold text-gray-800 text-right max-w-[200px] truncate">
-                                        {reportData?.nama_event || events.find(e => e.id === selectedEventId)?.nama_event || '-'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Scope:</span>
-                                    <span className="font-bold text-gray-800">
-                                        {selectedDate
-                                            ? fmtTanggal(selectedDate)
-                                            : eventTanggalRange.length > 1
-                                                ? `Seluruh Event (${eventTanggalRange.length} hari)`
-                                                : 'Seluruh Event'
-                                        }
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Tipe Pengunjung:</span>
-                                    <span className="font-bold text-gray-800">{filterType}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500">Total Data:</span>
-                                    <span className="font-bold text-gray-800">{filteredReports.length} entri</span>
-                                </div>
-                            </div>
-                            <p className="text-xs text-yellow-600 bg-yellow-50 p-3 rounded-lg border border-yellow-100 flex gap-2 items-start">
-                                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                                Proses export mungkin memakan waktu beberapa detik karena jumlah data yang besar.
-                            </p>
-                        </div>
-
-                        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                disabled={isExporting}
-                                className="px-5 py-2.5 text-gray-600 font-semibold text-sm hover:bg-gray-200 rounded-xl transition disabled:opacity-50"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleExport}
-                                disabled={isExporting || filteredReports.length === 0}
-                                className="px-5 py-2.5 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white font-semibold text-sm rounded-xl shadow-md transition flex items-center gap-2"
-                            >
-                                {isExporting ? (
-                                    <><Loader2 size={16} className="animate-spin" /> Memproses...</>
-                                ) : (
-                                    <><Download size={16} /> Unduh Sekarang</>
-                                )}
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-            )}
+            <ExportModal
+              open={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              subtitle="Laporan Kunjungan Event"
+              details={[
+                ['Event', reportData?.nama_event || events.find(e => e.id === selectedEventId)?.nama_event || '—'],
+                ['Scope', selectedDate ? fmtTanggal(selectedDate) : eventTanggalRange.length > 1 ? `Seluruh Event (${eventTanggalRange.length} hari)` : 'Seluruh Event'],
+                ['Tipe Pengunjung', filterType],
+                ['Total Data', `${filteredReports.length} entri`],
+                ['Format', exportFormat + ' Document'],
+              ]}
+              onExcel={() => { setExportFormat('Excel'); handleExport(); }}
+              onPdf={()    => { setExportFormat('PDF');   handleExport(); }}
+            />
           </div>
           )} {/* end pengunjung tab */}
 
@@ -679,6 +609,100 @@ const Reports = () => {
         </div>
     );
 };
+// ── Shared client-side export helpers ────────────────────────────────────────
+// Excel: tab-separated, opens natively in Excel/LibreOffice
+function exportExcel(filename, headers, rows) {
+  const lines = [headers.join('\t'), ...rows.map(r => r.map(v => String(v ?? '')).join('\t'))];
+  const blob  = new Blob(['\uFEFF' + lines.join('\n')], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href      = url;
+  a.download  = filename.replace(/\.(csv|xls|xlsx)$/, '') + '.xls';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// PDF: print-friendly HTML opened in new window
+function exportPDF(title, headers, rows, summaryRows) {
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sr  = summaryRows || [];
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}
+  h2{font-size:15px;margin-bottom:3px;color:#1a3a2a}
+  .meta{font-size:10px;color:#666;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#2f6f4e;color:#fff;padding:6px 9px;text-align:left;font-size:10px;white-space:nowrap}
+  td{padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:10px}
+  tr.total td{font-weight:700;background:#f0fdf4;border-top:2px solid #2f6f4e}
+  @media print{@page{margin:12mm}}
+</style></head><body>
+<h2>${esc(title)}</h2>
+<div class="meta">Dicetak: ${new Date().toLocaleString('id-ID')} &nbsp;·&nbsp; Peken Banyumasan</div>
+<table>
+  <thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+  <tbody>
+    ${rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}
+    ${sr.map(r=>`<tr class="total">${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}
+  </tbody>
+</table>
+<script>window.onload=()=>window.print()</script>
+</body></html>`;
+  const w = window.open('','_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+// ── Shared Export Modal — reused by all 3 report tabs ─────────────────────────
+function ExportModal({ open, onClose, subtitle, details, onExcel, onPdf }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="bg-green-700 p-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white">
+              <Download size={20}/>
+            </div>
+            <div className="text-white">
+              <h3 className="font-bold text-lg leading-tight">Konfirmasi Export</h3>
+              <p className="text-green-100 text-xs">{subtitle}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-green-200 hover:text-white transition">
+            <X size={22}/>
+          </button>
+        </div>
+        <div className="p-6">
+          <p className="text-gray-600 text-sm mb-4">Pilih format yang akan diunduh:</p>
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-5 space-y-2 text-sm">
+            {details.map(([label, val]) => (
+              <div key={label} className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">{label}:</span>
+                <span className="font-bold text-gray-800 text-right truncate">{val}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => { onExcel(); onClose(); }}
+              className="flex-1 flex items-center justify-center gap-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 px-4 py-2.5 rounded-xl font-semibold text-sm transition">
+              <FileSpreadsheet size={16}/> Export Excel
+            </button>
+            <button onClick={() => { onPdf(); onClose(); }}
+              className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-4 py-2.5 rounded-xl font-semibold text-sm transition">
+              <FileText size={16}/> Export PDF
+            </button>
+          </div>
+        </div>
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose}
+            className="px-5 py-2 text-gray-600 font-semibold text-sm hover:bg-gray-200 rounded-xl transition">
+            Batal
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ── Tenant Report Tab ─────────────────────────────────────────────────────────
 const DEMO_TENANT_REPORT = [
   { id:'t1', nama:'Batik Sari Rahayu',    kategori:'Kriya & Fashion', omset:4850000, komisi_persen:15, transaksi:42, event_count:3, stand_terakhir:'A-3' },
@@ -690,52 +714,70 @@ const DEMO_TENANT_REPORT = [
 ];
 const fmtRp = n => `Rp ${(n||0).toLocaleString('id-ID')}`;
 
-function TenantReport({ events = [], isLoadingEvents }) {
-  const [selEvent, setSelEvent] = React.useState('');
-  const [sortBy,   setSortBy]   = React.useState('omset');
-  const [search,   setSearch]   = React.useState('');
+function TenantReport({ events = [] }) {
+  const [selEvent,   setSelEvent]   = React.useState('');
+  const [sortBy,     setSortBy]     = React.useState('omset');
+  const [search,     setSearch]     = React.useState('');
+  const [showExport, setShowExport] = React.useState(false);
 
-  const data = React.useMemo(() => DEMO_TENANT_REPORT
-    .filter(t => !search || t.nama.toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b) => {
-      if (sortBy==='omset')     return b.omset - a.omset;
-      if (sortBy==='komisi')    return (b.omset*b.komisi_persen/100) - (a.omset*a.komisi_persen/100);
-      if (sortBy==='transaksi') return b.transaksi - a.transaksi;
-      if (sortBy==='event')     return b.event_count - a.event_count;
-      return a.nama.localeCompare(b.nama);
-    }), [sortBy, search]);
+  const data = React.useMemo(() =>
+    DEMO_TENANT_REPORT
+      .filter(t => !search || t.nama.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => {
+        if (sortBy === 'omset')     return b.omset - a.omset;
+        if (sortBy === 'komisi')    return (b.omset * b.komisi_persen / 100) - (a.omset * a.komisi_persen / 100);
+        if (sortBy === 'transaksi') return b.transaksi - a.transaksi;
+        if (sortBy === 'event')     return b.event_count - a.event_count;
+        return a.nama.localeCompare(b.nama);
+      }),
+    [sortBy, search]
+  );
 
-  const totalOmset  = data.reduce((s,t)=>s+t.omset,0);
-  const totalKomisi = data.reduce((s,t)=>s+Math.round(t.omset*t.komisi_persen/100),0);
-  const totalTrx    = data.reduce((s,t)=>s+t.transaksi,0);
+  const totalOmset  = data.reduce((s, t) => s + t.omset, 0);
+  const totalKomisi = data.reduce((s, t) => s + Math.round(t.omset * t.komisi_persen / 100), 0);
+  const totalTrx    = data.reduce((s, t) => s + t.transaksi, 0);
+
+  const HDRS = ['Nama Usaha','Kategori','Stand Terakhir','Omset (Rp)','Komisi (Rp)','% Komisi','Netto (Rp)','Transaksi','Event Diikuti'];
+  const makeRows = () => data.map(t => {
+    const k = Math.round(t.omset * t.komisi_persen / 100);
+    return [t.nama, t.kategori, t.stand_terakhir, t.omset, k, t.komisi_persen + '%', t.omset - k, t.transaksi, t.event_count + 'x'];
+  });
+  const makeTot = () => [['TOTAL (' + data.length + ' UMKM)', '', '', totalOmset, totalKomisi, '', totalOmset - totalKomisi, totalTrx, '']];
 
   return (
     <div className="space-y-4">
+
+      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label:'Total Omset UMKM', value:fmtRp(totalOmset), cls:'text-green-700', bg:'bg-green-100' },
-          { label:'Total Komisi Masuk', value:fmtRp(totalKomisi), cls:'text-amber-700', bg:'bg-amber-100' },
-          { label:'Total Transaksi', value:totalTrx+' trx', cls:'text-blue-700', bg:'bg-blue-100' },
-        ].map(s=>(
+          { label: 'Total Omset UMKM',   value: fmtRp(totalOmset),   cls: 'text-green-700', bg: 'bg-green-100' },
+          { label: 'Total Komisi Masuk', value: fmtRp(totalKomisi),  cls: 'text-amber-700', bg: 'bg-amber-100' },
+          { label: 'Total Transaksi',    value: totalTrx + ' trx',   cls: 'text-blue-700',  bg: 'bg-blue-100'  },
+        ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.bg}`}>
-              <Store size={18} className={s.cls}/>
+              <Store size={18} className={s.cls} />
             </div>
-            <div><div className={`text-xl font-bold ${s.cls}`}>{s.value}</div><div className="text-xs text-gray-500">{s.label}</div></div>
+            <div>
+              <div className={`text-xl font-bold ${s.cls}`}>{s.value}</div>
+              <div className="text-xs text-gray-500">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Toolbar */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3 items-center">
-        <select value={selEvent} onChange={e=>setSelEvent(e.target.value)}
+        <select value={selEvent} onChange={e => setSelEvent(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 bg-gray-50 focus:outline-none focus:border-green-400">
           <option value="">Semua Event</option>
-          {events.map(e=><option key={e.id} value={e.id}>{e.nama_event||e.nama||'Event'}</option>)}
+          {events.map(e => <option key={e.id} value={e.id}>{e.nama_event || e.nama || 'Event'}</option>)}
         </select>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama usaha..."
-          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 w-48"/>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama usaha..."
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-green-400 w-48" />
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Urutkan:</span>
-          <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
             className="px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 bg-gray-50 focus:outline-none focus:border-green-400">
             <option value="omset">Omset Tertinggi</option>
             <option value="komisi">Komisi Terbesar</option>
@@ -743,102 +785,170 @@ function TenantReport({ events = [], isLoadingEvents }) {
             <option value="event">Paling Sering Ikut</option>
             <option value="nama">Nama A–Z</option>
           </select>
+          <button onClick={() => setShowExport(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-xl text-xs font-semibold transition whitespace-nowrap">
+            <FileSpreadsheet size={13} /> Export Excel
+          </button>
+          <button onClick={() => exportPDF('Laporan UMKM – Peken Banyumasan', HDRS, makeRows(), makeTot())}
+            className="flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-semibold transition whitespace-nowrap">
+            <FileText size={13} /> Export PDF
+          </button>
         </div>
+        <p className="w-full text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+          <Info size={11}/> Export mengikuti filter aktif — cari nama UMKM tertentu untuk export per-UMKM
+        </p>
       </div>
+
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-auto">
         <table className="w-full text-left text-sm min-w-[700px]">
-          <thead><tr className="border-b border-gray-100 bg-gray-50/80">
-            {['UMKM','Kategori','Omset','Komisi','Netto','Trx','Event'].map(h=>(
-              <th key={h} className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-            ))}
-          </tr></thead>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/80">
+              {['UMKM', 'Kategori', 'Omset', 'Komisi', 'Netto', 'Trx', 'Event'].map(h => (
+                <th key={h} className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {data.map(t => {
-              const k = Math.round(t.omset*t.komisi_persen/100);
+              const k = Math.round(t.omset * t.komisi_persen / 100);
               return (
                 <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
-                  <td className="px-4 py-3"><p className="font-semibold text-gray-800">{t.nama}</p><p className="text-xs text-gray-400">{t.stand_terakhir}</p></td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-gray-800">{t.nama}</p>
+                    <p className="text-xs text-gray-400">{t.stand_terakhir}</p>
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{t.kategori}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{fmtRp(t.omset)}</td>
-                  <td className="px-4 py-3 text-red-500 text-xs">−{fmtRp(k)} <span className="text-gray-400">({t.komisi_persen}%)</span></td>
-                  <td className="px-4 py-3 text-green-700 font-bold">{fmtRp(t.omset-k)}</td>
+                  <td className="px-4 py-3 text-red-500 text-xs">
+                    −{fmtRp(k)} <span className="text-gray-400">({t.komisi_persen}%)</span>
+                  </td>
+                  <td className="px-4 py-3 text-green-700 font-bold">{fmtRp(t.omset - k)}</td>
                   <td className="px-4 py-3 text-gray-600">{t.transaksi}</td>
-                  <td className="px-4 py-3"><span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">{t.event_count}×</span></td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">
+                      {t.event_count}×
+                    </span>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot><tr className="bg-gray-50 border-t border-gray-200">
-            <td className="px-4 py-3 font-bold text-gray-600 text-sm" colSpan={2}>Total ({data.length} UMKM)</td>
-            <td className="px-4 py-3 font-bold text-gray-800">{fmtRp(totalOmset)}</td>
-            <td className="px-4 py-3 font-bold text-red-500">−{fmtRp(totalKomisi)}</td>
-            <td className="px-4 py-3 font-bold text-green-700">{fmtRp(totalOmset-totalKomisi)}</td>
-            <td className="px-4 py-3 font-bold text-gray-800">{totalTrx}</td>
-            <td/>
-          </tr></tfoot>
+          <tfoot>
+            <tr className="bg-gray-50 border-t border-gray-200">
+              <td className="px-4 py-3 font-bold text-gray-600 text-sm" colSpan={2}>Total ({data.length} UMKM)</td>
+              <td className="px-4 py-3 font-bold text-gray-800">{fmtRp(totalOmset)}</td>
+              <td className="px-4 py-3 font-bold text-red-500">−{fmtRp(totalKomisi)}</td>
+              <td className="px-4 py-3 font-bold text-green-700">{fmtRp(totalOmset - totalKomisi)}</td>
+              <td className="px-4 py-3 font-bold text-gray-800">{totalTrx}</td>
+              <td />
+            </tr>
+          </tfoot>
         </table>
       </div>
+
+      <ExportModal
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        subtitle="Laporan UMKM – Peken Banyumasan"
+        details={[
+          ['Total UMKM',      `${data.length} usaha`],
+          ['Filter Event',    selEvent ? (events.find(e => e.id === selEvent)?.nama_event || selEvent) : 'Semua Event'],
+          ['Filter Nama',     search || '—'],
+          ['Total Omset',     `Rp ${totalOmset.toLocaleString('id-ID')}`],
+          ['Total Transaksi', `${totalTrx} trx`],
+        ]}
+        onExcel={() => exportExcel('laporan_umkm', HDRS, makeRows())}
+        onPdf={()   => exportPDF('Laporan UMKM – Peken Banyumasan', HDRS, makeRows(), makeTot())}
+      />
     </div>
   );
 }
 
 // ── Accumulation Report Tab ───────────────────────────────────────────────────
 const DEMO_ACCUM = [
-  { id:'e1', nama:'Festival Budaya Banyumasan 2025', tanggal:'2025-05-17', status:'mendatang', pengunjung:0, member_hadir:0, umkm_count:8, kreator_count:12, omset_umkm:0, komisi:0 },
-  { id:'e2', nama:'Workshop Batik & Tenun Nusantara', tanggal:'2025-04-26', status:'mendatang', pengunjung:0, member_hadir:0, umkm_count:3, kreator_count:5,  omset_umkm:0, komisi:0 },
-  { id:'e4', nama:'Peken Banyumasan #12', tanggal:'2025-03-20', status:'selesai', pengunjung:1247, member_hadir:89, umkm_count:24, kreator_count:18, omset_umkm:28450000, komisi:4267500 },
+  { id:'e1', nama:'Festival Budaya Banyumasan 2025', tanggal:'2025-05-17', status:'mendatang',  pengunjung:0,    member_hadir:0,  umkm_count:8,  kreator_count:12, omset_umkm:0,        komisi:0 },
+  { id:'e2', nama:'Workshop Batik & Tenun Nusantara', tanggal:'2025-04-26', status:'mendatang', pengunjung:0,    member_hadir:0,  umkm_count:3,  kreator_count:5,  omset_umkm:0,        komisi:0 },
+  { id:'e4', nama:'Peken Banyumasan #12',             tanggal:'2025-03-20', status:'selesai',   pengunjung:1247, member_hadir:89, umkm_count:24, kreator_count:18, omset_umkm:28450000, komisi:4267500 },
 ];
 
 function AccumulationReport({ events = [] }) {
+  const [showExport, setShowExport] = React.useState(false);
   const data    = DEMO_ACCUM;
-  const selesai = data.filter(e=>e.status==='selesai');
-  const totP = selesai.reduce((s,e)=>s+e.pengunjung,0);
-  const totO = selesai.reduce((s,e)=>s+e.omset_umkm,0);
-  const totK = selesai.reduce((s,e)=>s+e.komisi,0);
+  const selesai = data.filter(e => e.status === 'selesai');
+  const totP    = selesai.reduce((s,e) => s + e.pengunjung, 0);
+  const totO    = selesai.reduce((s,e) => s + e.omset_umkm, 0);
+  const totK    = selesai.reduce((s,e) => s + e.komisi, 0);
+
+  const HDRS = ['Nama Event','Tanggal','Status','Pengunjung','Kreator Hadir','UMKM','Omset UMKM (Rp)','Komisi (Rp)'];
+  const ROWS = data.map(e => [e.nama, new Date(e.tanggal).toLocaleDateString('id-ID'), e.status, e.pengunjung||0, e.kreator_count, e.umkm_count, e.omset_umkm||0, e.komisi||0]);
+  const TOT  = selesai.length > 0
+    ? [['TOTAL (selesai)','','', totP, selesai.reduce((s,e)=>s+e.kreator_count,0), selesai.reduce((s,e)=>s+e.umkm_count,0), totO, totK]]
+    : [];
 
   return (
     <div className="space-y-4">
+      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label:'Event Selesai', value:selesai.length+' event', cls:'text-gray-700' },
-          { label:'Total Pengunjung', value:totP.toLocaleString('id-ID'), cls:'text-green-700' },
-          { label:'Total Omset UMKM', value:fmtRp(totO), cls:'text-amber-700' },
-          { label:'Komisi Terkumpul', value:fmtRp(totK), cls:'text-blue-700' },
-        ].map(s=>(
+          { label:'Event Selesai',     value: selesai.length + ' event', cls:'text-gray-700' },
+          { label:'Total Pengunjung',  value: totP.toLocaleString('id-ID'), cls:'text-green-700' },
+          { label:'Total Omset UMKM',  value: fmtRp(totO), cls:'text-amber-700' },
+          { label:'Komisi Terkumpul',  value: fmtRp(totK), cls:'text-blue-700' },
+        ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className={`text-2xl font-bold ${s.cls}`}>{s.value}</div>
             <div className="text-xs text-gray-500 mt-1">{s.label}</div>
           </div>
         ))}
       </div>
+
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-auto">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <CalendarDays size={15} className="text-green-600"/>
-          <p className="font-bold text-gray-800 text-sm">Ringkasan Per Event</p>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={15} className="text-green-600"/>
+            <p className="font-bold text-gray-800 text-sm">Ringkasan Per Event</p>
+            <span className="text-[10px] text-gray-400 font-normal hidden sm:block">
+              · Detail per-event ada di tab <button onClick={() => {}} className="text-green-600 underline underline-offset-2">Laporan Pengunjung</button>
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowExport(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-xl text-xs font-semibold transition whitespace-nowrap">
+              <FileSpreadsheet size={13}/> Export Excel
+            </button>
+            <button onClick={() => exportPDF('Akumulasi Event – Peken Banyumasan', HDRS, ROWS, TOT)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-semibold transition whitespace-nowrap">
+              <FileText size={13}/> Export PDF
+            </button>
+          </div>
         </div>
         <table className="w-full text-left text-sm min-w-[800px]">
           <thead><tr className="border-b border-gray-100 bg-gray-50/80">
-            {['Event','Tanggal','Pengunjung','Kreator','UMKM','Omset UMKM','Komisi','Status'].map(h=>(
+            {['Event','Tanggal','Pengunjung','Kreator','UMKM','Omset UMKM','Komisi','Status'].map(h => (
               <th key={h} className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {data.map(e=>(
+            {data.map(e => (
               <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
                 <td className="px-4 py-3 font-semibold text-gray-800 max-w-[180px]"><p className="truncate">{e.nama}</p></td>
                 <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(e.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}</td>
-                <td className="px-4 py-3 font-semibold text-gray-800">{e.pengunjung?e.pengunjung.toLocaleString('id-ID'):'—'}</td>
+                <td className="px-4 py-3 font-semibold text-gray-800">{e.pengunjung ? e.pengunjung.toLocaleString('id-ID') : '—'}</td>
                 <td className="px-4 py-3 text-gray-600">{e.kreator_count}</td>
                 <td className="px-4 py-3 text-gray-600">{e.umkm_count}</td>
-                <td className="px-4 py-3 text-gray-700">{e.omset_umkm?fmtRp(e.omset_umkm):'—'}</td>
-                <td className="px-4 py-3 text-green-700 font-medium">{e.komisi?fmtRp(e.komisi):'—'}</td>
+                <td className="px-4 py-3 text-gray-700">{e.omset_umkm ? fmtRp(e.omset_umkm) : '—'}</td>
+                <td className="px-4 py-3 text-green-700 font-medium">{e.komisi ? fmtRp(e.komisi) : '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${e.status==='selesai'?'bg-green-50 text-green-700':'bg-yellow-50 text-yellow-700'}`}>{e.status}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${e.status==='selesai' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                    {e.status}
+                  </span>
                 </td>
               </tr>
             ))}
           </tbody>
-          {selesai.length>0 && (
+          {selesai.length > 0 && (
             <tfoot><tr className="bg-gray-50 border-t border-gray-200">
               <td className="px-4 py-3 font-bold text-gray-600 text-sm" colSpan={2}>Total (selesai)</td>
               <td className="px-4 py-3 font-bold text-gray-800">{totP.toLocaleString('id-ID')}</td>
@@ -851,8 +961,24 @@ function AccumulationReport({ events = [] }) {
           )}
         </table>
       </div>
+
+      <ExportModal
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        subtitle="Akumulasi Event – Peken Banyumasan"
+        details={[
+          ['Total Event', `${data.length} event`],
+          ['Event Selesai', `${selesai.length} event`],
+          ['Total Pengunjung', totP.toLocaleString('id-ID')],
+          ['Total Omset UMKM', fmtRp(totO)],
+          ['Total Komisi', fmtRp(totK)],
+        ]}
+        onExcel={() => exportExcel('akumulasi_event', HDRS, ROWS)}
+        onPdf={()   => exportPDF('Akumulasi Event – Peken Banyumasan', HDRS, ROWS, TOT)}
+      />
     </div>
   );
 }
 
 export default Reports;
+
