@@ -1,178 +1,190 @@
-// eventZones.js — Per-event zone/stand configuration
-// Source of truth: localStorage (demo) → swap to API call in production
-// Key: pekan_zones_{eventId}
+// eventZones.js — Zone & Stand configuration
+//
+// ARCHITECTURE (best practice for recurring-venue events):
+//   • Zone layout (which zones exist, how many stands) = GLOBAL config
+//     stored in localStorage: "pekan_zones_global"
+//     → same venue is reused event after event, so layout is shared
+//   • Occupied state = per-event
+//     stored in localStorage: "pekan_occupied_{eventId}"
+//     → who has which stand differs per event
+//
+// This means admin sets up zones once, then just assigns stands per event.
+// Admin can still edit the global layout at any time.
 
-const STORAGE_PREFIX = 'pekan_zones_';
+const GLOBAL_KEY  = 'pekan_zones_global';
+const OCC_PREFIX  = 'pekan_occupied_';
+const UPDATE_EVT  = 'pekan_zones_update';
 
-// Default zone templates admin can start from
+// ── Default global layout ─────────────────────────────────────────────────────
+export const DEFAULT_GLOBAL_ZONES = [
+  {
+    zona:'A', label:'Zona A – Kriya & Fashion', warna:'#8B5E3C',
+    stands: Array.from({ length: 8 }, (_, i) => ({ id: `A-${i + 1}` })),
+  },
+  {
+    zona:'B', label:'Zona B – Kuliner', warna:'#D97706',
+    stands: Array.from({ length: 10 }, (_, i) => ({ id: `B-${i + 1}` })),
+  },
+  {
+    zona:'C', label:'Zona C – Seni & Pertunjukan', warna:'#7C3AED',
+    stands: Array.from({ length: 4 }, (_, i) => ({ id: `C-${i + 1}` })),
+  },
+  {
+    zona:'P', label:'Zona P – Panggung', warna:'#1D4ED8',
+    stands: Array.from({ length: 2 }, (_, i) => ({ id: `P-${i + 1}` })),
+  },
+];
+
 export const ZONE_TEMPLATES = {
   festival: [
-    { zona:'A', label:'Zona A – Kriya & Fashion', warna:'#8B5E3C', kapasitas:8 },
-    { zona:'B', label:'Zona B – Kuliner',          warna:'#D97706', kapasitas:10 },
-    { zona:'C', label:'Zona C – Seni & Pertunjukan',warna:'#7C3AED', kapasitas:4 },
-    { zona:'P', label:'Zona P – Panggung',          warna:'#1D4ED8', kapasitas:2 },
+    { zona:'A', label:'Zona A – Kriya & Fashion',    warna:'#8B5E3C', kapasitas: 8  },
+    { zona:'B', label:'Zona B – Kuliner',             warna:'#D97706', kapasitas: 10 },
+    { zona:'C', label:'Zona C – Seni & Pertunjukan',  warna:'#7C3AED', kapasitas: 4  },
+    { zona:'P', label:'Zona P – Panggung',            warna:'#1D4ED8', kapasitas: 2  },
   ],
   workshop: [
-    { zona:'R', label:'Zona R – Ruang Utama',  warna:'#065F46', kapasitas:6 },
-    { zona:'L', label:'Zona L – Lab Praktek',  warna:'#9D174D', kapasitas:8 },
+    { zona:'R', label:'Zona R – Ruang Utama',  warna:'#065F46', kapasitas: 6 },
+    { zona:'L', label:'Zona L – Lab Praktek',  warna:'#9D174D', kapasitas: 8 },
   ],
   bazaar: [
-    { zona:'A', label:'Zona A – Depan',   warna:'#8B5E3C', kapasitas:10 },
-    { zona:'B', label:'Zona B – Tengah',  warna:'#D97706', kapasitas:12 },
-    { zona:'C', label:'Zona C – Belakang',warna:'#374151', kapasitas:8 },
+    { zona:'A', label:'Zona A – Depan',    warna:'#8B5E3C', kapasitas: 10 },
+    { zona:'B', label:'Zona B – Tengah',   warna:'#D97706', kapasitas: 12 },
+    { zona:'C', label:'Zona C – Belakang', warna:'#374151', kapasitas: 8  },
   ],
 };
 
-// Default zones with seeded occupied data per event
-const DEFAULT_EVENT_ZONES = {
-  e1: [
-    { zona:'A', label:'Zona A – Kriya & Fashion', warna:'#8B5E3C',
-      stands:[
-        {id:'A-1',occupied:false},{id:'A-2',occupied:true},{id:'A-3',occupied:true},
-        {id:'A-4',occupied:false},{id:'A-5',occupied:false},{id:'A-6',occupied:true},
-        {id:'A-7',occupied:false},{id:'A-8',occupied:false},
-      ]},
-    { zona:'B', label:'Zona B – Kuliner', warna:'#D97706',
-      stands:[
-        {id:'B-1',occupied:false},{id:'B-2',occupied:false},{id:'B-3',occupied:true},
-        {id:'B-4',occupied:false},{id:'B-5',occupied:true},{id:'B-6',occupied:false},
-        {id:'B-7',occupied:false},{id:'B-8',occupied:true},{id:'B-9',occupied:false},{id:'B-10',occupied:false},
-      ]},
-    { zona:'C', label:'Zona C – Seni & Pertunjukan', warna:'#7C3AED',
-      stands:[
-        {id:'C-1',occupied:false},{id:'C-2',occupied:false},
-        {id:'C-3',occupied:false},{id:'C-4',occupied:true},
-      ]},
-    { zona:'P', label:'Zona P – Panggung', warna:'#1D4ED8',
-      stands:[
-        {id:'P-1',occupied:true},{id:'P-2',occupied:false},
-      ]},
-  ],
-  e2: [
-    { zona:'R', label:'Zona R – Ruang Utama', warna:'#065F46',
-      stands:[
-        {id:'R-1',occupied:true},{id:'R-2',occupied:false},{id:'R-3',occupied:true},
-        {id:'R-4',occupied:false},{id:'R-5',occupied:false},{id:'R-6',occupied:false},
-      ]},
-    { zona:'L', label:'Zona L – Lab Praktek', warna:'#9D174D',
-      stands:[
-        {id:'L-1',occupied:false},{id:'L-2',occupied:true},{id:'L-3',occupied:false},
-        {id:'L-4',occupied:false},{id:'L-5',occupied:false},
-      ]},
-  ],
-  e3: [
-    { zona:'A', label:'Zona A – Depan',    warna:'#8B5E3C', stands: Array.from({length:10},(_,i)=>({id:`A-${i+1}`,occupied:false})) },
-    { zona:'B', label:'Zona B – Tengah',   warna:'#D97706', stands: Array.from({length:12},(_,i)=>({id:`B-${i+1}`,occupied:false})) },
-    { zona:'C', label:'Zona C – Belakang', warna:'#374151', stands: Array.from({length:8}, (_,i)=>({id:`C-${i+1}`,occupied:false})) },
-  ],
-};
+// ── Global layout CRUD ────────────────────────────────────────────────────────
 
-/** Get zones for an event (from localStorage, falling back to default seed) */
-export function getEventZones(eventId) {
+/** Get the global zone layout (stand definitions, no occupied state) */
+export function getGlobalZones() {
   try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + eventId);
+    const raw = localStorage.getItem(GLOBAL_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return DEFAULT_EVENT_ZONES[eventId] || ZONE_TEMPLATES.festival.map(z => ({
-    ...z,
-    stands: Array.from({length: z.kapasitas}, (_, i) => ({ id:`${z.zona}-${i+1}`, occupied:false })),
-  }));
+  return DEFAULT_GLOBAL_ZONES;
 }
 
-/** Save zones for an event */
-export function saveEventZones(eventId, zones) {
+/** Save the global zone layout */
+export function saveGlobalZones(zones) {
   try {
-    localStorage.setItem(STORAGE_PREFIX + eventId, JSON.stringify(zones));
-    window.dispatchEvent(new CustomEvent('pekan_zones_update', { detail: { eventId } }));
+    // Strip occupied from layout — occupied is per-event only
+    const clean = zones.map(z => ({
+      zona: z.zona, label: z.label, warna: z.warna,
+      stands: z.stands.map(s => ({ id: s.id })),
+    }));
+    localStorage.setItem(GLOBAL_KEY, JSON.stringify(clean));
+    window.dispatchEvent(new CustomEvent(UPDATE_EVT));
   } catch {}
 }
 
-/** Mark a stand as occupied/free */
-export function setStandOccupied(eventId, standId, occupied) {
-  const zones = getEventZones(eventId);
-  const updated = zones.map(z => ({
-    ...z,
-    stands: z.stands.map(s => s.id === standId ? { ...s, occupied } : s),
-  }));
-  saveEventZones(eventId, updated);
-  return updated;
-}
-
-/** Derive occupied stands from assigned tenants */
-export function syncOccupiedFromTenants(eventId, tenants) {
-  const zones = getEventZones(eventId);
-  const occupiedIds = new Set(
-    tenants.map(t => t.posisi_event).filter(Boolean)
-  );
-  const updated = zones.map(z => ({
-    ...z,
-    stands: z.stands.map(s => ({ ...s, occupied: occupiedIds.has(s.id) })),
-  }));
-  saveEventZones(eventId, updated);
-  return updated;
-}
-
-/** Add a new zone to an event */
-export function addZone(eventId, { zona, label, warna, kapasitas }) {
-  const zones = getEventZones(eventId);
-  if (zones.find(z => z.zona === zona)) throw new Error(`Zona ${zona} sudah ada`);
+export function addZone(zonaCode, label, warna, kapasitas) {
+  const zones = getGlobalZones();
+  const code  = zonaCode.toUpperCase().trim();
+  if (zones.find(z => z.zona === code)) throw new Error(`Zona ${code} sudah ada`);
+  const n = Math.max(1, Math.min(50, kapasitas));
   const newZone = {
-    zona, label, warna: warna || '#374151',
-    stands: Array.from({length: kapasitas}, (_, i) => ({ id:`${zona}-${i+1}`, occupied:false })),
+    zona: code, label, warna: warna || '#374151',
+    stands: Array.from({ length: n }, (_, i) => ({ id: `${code}-${i + 1}` })),
   };
   const updated = [...zones, newZone];
-  saveEventZones(eventId, updated);
+  saveGlobalZones(updated);
   return updated;
 }
 
-/** Remove a zone from an event */
-export function removeZone(eventId, zonaId) {
-  const zones = getEventZones(eventId);
-  const updated = zones.filter(z => z.zona !== zonaId);
-  saveEventZones(eventId, updated);
+export function removeZone(zonaCode) {
+  const updated = getGlobalZones().filter(z => z.zona !== zonaCode);
+  saveGlobalZones(updated);
   return updated;
 }
 
-/** Add stands to an existing zone */
-export function addStands(eventId, zonaId, count) {
-  const zones = getEventZones(eventId);
+export function addStands(zonaCode, count) {
+  const zones = getGlobalZones();
   const updated = zones.map(z => {
-    if (z.zona !== zonaId) return z;
-    const maxNum = Math.max(0, ...z.stands.map(s => parseInt(s.id.split('-')[1])||0));
-    const newStands = Array.from({length: count}, (_, i) => ({
-      id: `${zonaId}-${maxNum + i + 1}`, occupied: false,
+    if (z.zona !== zonaCode) return z;
+    const maxNum = Math.max(0, ...z.stands.map(s => parseInt(s.id.split('-')[1]) || 0));
+    const newStands = Array.from({ length: count }, (_, i) => ({
+      id: `${zonaCode}-${maxNum + i + 1}`,
     }));
     return { ...z, stands: [...z.stands, ...newStands] };
   });
-  saveEventZones(eventId, updated);
+  saveGlobalZones(updated);
   return updated;
 }
 
-/** Remove a stand from a zone */
-export function removeStand(eventId, standId) {
-  const zones = getEventZones(eventId);
+export function removeStand(standId) {
+  const zones = getGlobalZones();
   const updated = zones.map(z => ({
     ...z, stands: z.stands.filter(s => s.id !== standId),
   }));
-  saveEventZones(eventId, updated);
+  saveGlobalZones(updated);
   return updated;
 }
 
-/** Reset zones for an event to a template */
-export function resetToTemplate(eventId, templateKey) {
-  const template = ZONE_TEMPLATES[templateKey];
-  if (!template) return;
-  const zones = template.map(z => ({
-    ...z,
-    stands: Array.from({length: z.kapasitas}, (_, i) => ({ id:`${z.zona}-${i+1}`, occupied:false })),
+export function resetToTemplate(templateKey) {
+  const tmpl = ZONE_TEMPLATES[templateKey];
+  if (!tmpl) return;
+  const zones = tmpl.map(z => ({
+    zona: z.zona, label: z.label, warna: z.warna,
+    stands: Array.from({ length: z.kapasitas }, (_, i) => ({ id: `${z.zona}-${i + 1}` })),
   }));
-  saveEventZones(eventId, zones);
+  saveGlobalZones(zones);
   return zones;
 }
 
-/** Summary stats for a zone config */
+// ── Per-event occupied state ──────────────────────────────────────────────────
+
+/** Get stand IDs that are occupied for a given event */
+function getOccupied(eventId) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(OCC_PREFIX + eventId) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveOccupied(eventId, occupiedSet) {
+  try {
+    localStorage.setItem(OCC_PREFIX + eventId, JSON.stringify([...occupiedSet]));
+  } catch {}
+}
+
+/**
+ * Get zones for a specific event:
+ * global layout + per-event occupied state merged
+ */
+export function getEventZones(eventId) {
+  const layout   = getGlobalZones();
+  const occupied = getOccupied(eventId);
+  return layout.map(z => ({
+    ...z,
+    stands: z.stands.map(s => ({ ...s, occupied: occupied.has(s.id) })),
+  }));
+}
+
+/**
+ * Sync occupied stands from the list of assigned tenants.
+ * Called whenever a tenant is assigned or removed.
+ */
+export function syncOccupiedFromTenants(eventId, tenants) {
+  const occupiedIds = new Set(
+    tenants.map(t => t.posisi_event).filter(Boolean)
+  );
+  saveOccupied(eventId, occupiedIds);
+  return getEventZones(eventId);
+}
+
+/** Stats helper */
 export function getZoneStats(zones) {
-  const totalStands = zones.reduce((n, z) => n + z.stands.length, 0);
-  const occupied    = zones.reduce((n, z) => n + z.stands.filter(s=>s.occupied).length, 0);
-  return { totalStands, occupied, available: totalStands - occupied };
+  const total    = zones.reduce((n, z) => n + z.stands.length, 0);
+  const occupied = zones.reduce((n, z) => n + z.stands.filter(s => s.occupied).length, 0);
+  return { total, occupied, available: total - occupied };
+}
+
+// ── Backward compat alias ─────────────────────────────────────────────────────
+export function saveEventZones(eventId, zones) {
+  // For backward compat: save the occupied state extracted from zones
+  const occupied = new Set(
+    zones.flatMap(z => z.stands.filter(s => s.occupied).map(s => s.id))
+  );
+  saveOccupied(eventId, occupied);
 }
